@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>HOTEL PACHMARHI – EXPENSE MANAGER V4</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f7f8f9;--card:#fff;--text:#111827;--muted:#6b7280;--border:#e5e7eb;--primary:#0f3d2e;--primary-2:#145a43;--radius:14px;--danger:#dc2626;--warn:#f59e0b}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text)}
+h1,h2,h3{font-family:'Manrope',sans-serif}
+button,input,select,textarea{font-family:inherit}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(1200px 600px at 20% 0%, #d1fae5 0%, transparent 60%), radial-gradient(1000px 500px at 90% 100%, #ccfbf1 0%, transparent 60%), #0f3d2e}
+.login-card{background:#fff;width:100%;max-width:460px;border-radius:20px;padding:28px 24px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.login-card h1{font-size:22px;text-align:center;color:var(--primary)}
+.sub{text-align:center;color:var(--muted);font-size:13px;margin:6px 0 18px}
+.field{margin-bottom:12px}
+.field label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px}
+.field input{width:100%;height:46px;border:1px solid var(--border);border-radius:12px;padding:0 14px;font-size:15px}
+.btn{height:46px;border-radius:12px;border:0;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:.15s}
+.btn-primary{background:var(--primary);color:#fff;width:100%}
+.btn-primary:hover{background:var(--primary-2)}
+.btn-ghost{background:#fff;border:1px solid var(--border)}
+.btn-sm{height:36px;padding:0 14px;font-size:13px;border-radius:10px}
+.app{display:none;min-height:100vh}
+.topbar{height:64px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 18px;position:sticky;top:0;z-index:20}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700}
+.brand-mark{width:36px;height:36px;border-radius:10px;background:var(--primary);color:#fff;display:grid;place-items:center;font-size:18px}
+.status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:#22c55e}
+.dot.unsaved{background:var(--warn);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.file-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#ecfdf5;border:1px solid #a7f3d0;font-size:11px;font-weight:600;color:#065f46;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-badge.no-file{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.layout{display:flex;min-height:calc(100vh - 64px)}
+.nav{width:252px;background:#fff;border-right:1px solid var(--border);padding:14px 10px;position:sticky;top:64px;height:calc(100vh - 64px);overflow:auto}
+.nav a{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:10px;color:#374151;font-size:14px;font-weight:500;text-decoration:none;cursor:pointer}
+.nav a.active,.nav a:hover{background:#ecfdf5;color:var(--primary)}
+.nav .sep{height:1px;background:var(--border);margin:10px 6px}
+.main{flex:1;padding:18px;max-width:1400px}
+.grid{display:grid;gap:14px}
+.grid-4{grid-template-columns:repeat(4,1fr)}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+.grid-2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:1100px){.grid-4{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(2,1fr)}.nav{position:fixed;left:0;top:64px;bottom:0;transform:translateX(-100%);z-index:30;transition:.2s}.nav.open{transform:none}}
+@media(max-width:640px){.grid-4,.grid-3,.grid-2{grid-template-columns:1fr}}
+.card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.card h3{font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.card .val{font-size:24px;font-weight:700}
+.kpi{display:flex;justify-content:space-between;align-items:flex-start}
+.kpi .icon{width:38px;height:38px;border-radius:10px;background:#ecfdf5;display:grid;place-items:center}
+.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:10px 12px;background:#f9fafb;white-space:nowrap}
+td{padding:10px 12px;border-top:1px solid var(--border);white-space:nowrap}
+tr:hover td{background:#f9fafb}
+.input{height:42px;border:1px solid var(--border);border-radius:10px;padding:0 12px;width:100%;font-size:14px;background:#fff}
+.input:focus{outline:0;border-color:var(--primary);box-shadow:0 0 0 3px rgba(15,61,46,.12)}
+textarea.input{height:auto;padding:10px 12px;min-height:84px;resize:vertical}
+.form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+@media(max-width:640px){.form-grid{grid-template-columns:1fr}}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.hidden{display:none!important}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal.open{display:flex}
+.modal-box{background:#fff;border-radius:16px;max-width:640px;width:100%;padding:18px;max-height:90vh;overflow:auto}
+.alert{padding:10px 12px;border-radius:10px;font-size:13px;margin-bottom:12px}
+.alert-warn{background:#fffbeb;border:1px solid #fcd34d;color:#92400e}
+.alert-ok{background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46}
+.report-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.report-tabs button{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer}
+.report-tabs button.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.badge{padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;display:inline-block;background:#e5e7eb}
+#printArea{display:none}
+/* 80mm thermal */
+@media print {
+  body *{visibility:hidden}
+  #printArea{display:block!important;visibility:visible;position:absolute;left:0;top:0;width:100%}
+  #printArea *{visibility:visible}
+  #printArea .a4{display:none}
+  #printArea .thermal80{display:block!important}
+  body.print-a4 #printArea .a4{display:block!important}
+  body.print-a4 #printArea .thermal80{display:none!important}
+  body.print-thermal #printArea .a4{display:none!important}
+  body.print-thermal #printArea .thermal80{display:block!important}
+}
+.thermal80{display:none;font-family:'JetBrains Mono',monospace;width:80mm;margin:0 auto;font-size:12px;line-height:1.4;color:#000;background:#fff;padding:6mm 3mm}
+.thermal80 .center{text-align:center}
+.thermal80 .line{border-top:1px dashed #000;margin:6px 0}
+.thermal80 .row{display:flex;justify-content:space-between}
+.thermal80 .small{font-size:10px}
+</style>
+</head>
+<body data-app-version="4.0">
+<div id="loginView" class="login-wrap">
+  <div class="login-card">
+    <div style="display:grid;place-items:center;margin-bottom:10px"><div class="brand-mark">HP</div></div>
+    <h1>HOTEL PACHMARHI</h1>
+    <p class="sub">Expense Manager V4 • Excel is the Primary Database</p>
+    <div id="loginMsg" class="alert alert-warn hidden"></div>
+    <div id="restoreInfo" class="alert alert-ok hidden"></div>
+    <div class="field"><label>Password</label><input id="loginPass" type="password" placeholder="Enter admin password"></div>
+    <button class="btn btn-primary" onclick="doLogin()">Unlock</button>
+    <div style="font-size:11px;color:#6b7280;text-align:center;margin-top:12px">Connect the Excel workbook to save permanent changes. Local cache is for recovery only.</div>
+  </div>
+</div>
+
+<div id="appView" class="app">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:10px">
+      <button class="btn btn-ghost btn-sm" id="menuBtn" onclick="document.querySelector('.nav').classList.toggle('open')">☰</button>
+      <div class="brand"><div class="brand-mark">HP</div><div><div style="font-size:14px">HOTEL PACHMARHI</div><div style="font-size:11px;color:var(--muted);font-weight:500">EXPENSE MANAGER</div></div></div>
+    </div>
+    <div class="status">
+      <span id="fileBadge" class="file-badge no-file">No file connected</span>
+      <span><span id="saveDot" class="dot"></span> <span id="saveText">No workbook</span></span>
+      <span id="recCount" class="hidden"></span>
+      <button class="btn btn-ghost btn-sm" onclick="saveWorkbook(true)">↻ Sync</button><button class="btn btn-ghost btn-sm" onclick="changeFilePath()">📁 Change File</button>
+      <button class="btn btn-ghost btn-sm" onclick="lockApp()">🔒 Lock</button>
+    </div>
+  </div>
+  <div class="layout">
+    <nav class="nav">
+      <a data-nav="dashboard" class="active" onclick="go('dashboard')">📊 Dashboard</a>
+      <a data-nav="add" onclick="go('add')">➕ Add Expense</a>
+      <a data-nav="register" onclick="go('register')">📒 Register</a>
+      <a data-nav="reports" onclick="go('reports')">📈 Reports</a>
+      <a data-nav="categories" onclick="go('categories')">🗂 Categories</a>
+      <a data-nav="vendors" onclick="go('vendors')">🏪 Vendors</a>
+      <a data-nav="backup" onclick="go('backup')">💾 File & Backup</a>
+      <a data-nav="settings" onclick="go('settings')">⚙️ Settings</a>
+      <div class="sep"></div>
+      <div style="padding:8px 6px;font-size:11px;color:var(--muted)">Excel is primary. Local cache is recovery-only. <span id="fsSupport"></span></div>
+    </nav>
+    <main class="main">
+      <section id="page-dashboard">
+        <div class="grid grid-4" id="kpiGrid"></div>
+        <div style="height:14px"></div>
+        <div class="grid grid-2">
+          <div class="card"><div style="display:flex;justify-content:space-between"><h3>Category-wise (This Month)</h3><button class="btn btn-ghost btn-sm" onclick="printDaily80()">🖨 80mm Today</button></div><canvas id="catPie" height="220"></canvas></div>
+          <div class="card"><h3>Daily Expense (Last 14 Days)</h3><canvas id="dailyBar" height="220"></canvas></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="grid grid-2">
+          <div class="card"><h3>Monthly Trend (6 Months)</h3><canvas id="monthLine" height="220"></canvas></div>
+          <div class="card"><h3>Payment Mode</h3><canvas id="payChart" height="220"></canvas><div id="todaySummary" style="margin-top:12px"></div></div>
+        </div>
+        <div style="height:14px"></div>
+        <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px"><h3>Last 10 Transactions</h3><button class="btn btn-ghost btn-sm" onclick="printDaily80()">🧾 Print Daily Summary 80mm</button></div><div class="table-wrap"><table id="last10Table"></table></div></div>
+      </section>
+
+      <section id="page-add" class="hidden">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><h2 style="font-size:18px">Add / Edit Expense</h2><span id="editBadge" class="badge hidden" style="background:#fee2e2;color:#991b1b">EDIT MODE</span></div>
+          <div id="dupWarn" class="alert alert-warn hidden"></div>
+          <div class="form-grid">
+            <div class="field"><label>Expense Date *</label><input class="input" id="fDate" type="date"></div>
+            <div class="field"><label>Category *</label><select class="input" id="fCat" onchange="onCatChange()"></select></div>
+            <div class="field"><label>Subcategory *</label><select class="input" id="fSub"></select></div>
+            <div class="field"><label>Amount (₹) *</label><input class="input" id="fAmount" type="number" min="0" step="0.01" placeholder="0.00"></div>
+            <div class="field"><label>Payment Mode *</label><select class="input" id="fPay"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Debit/Credit Card</option><option>Other</option></select></div>
+            <div class="field"><label>Paid To / Vendor</label><input class="input" id="fVendor" list="vendorList" placeholder="Optional - select or type vendor"><datalist id="vendorList"></datalist></div>
+            <div class="field"><label>Bill Number</label><input class="input" id="fBillNo" placeholder="Optional"></div>
+            <div class="field" style="grid-column:1 / -1"><label>Particulars / Description (optional)</label><textarea class="input" id="fPart" placeholder="Optional"></textarea></div>
+            <div class="field"><label>Bill / Receipt</label><input class="input" id="fFile" type="file" accept="image/*,application/pdf"></div>
+            <div class="field"><label>Remarks</label><input class="input" id="fRemarks" placeholder="Optional"></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+            <button class="btn btn-primary" style="flex:1" onclick="saveExpense(false)">💾 Save to Connected File</button>
+            <button class="btn btn-ghost" style="flex:1" onclick="saveExpense(true)">Save & Add Another</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearForm()">Clear</button>
+            <button class="btn btn-ghost btn-sm" onclick="cancelEdit()">Cancel</button>
+          </div>
+          <div id="formMsg" style="margin-top:10px"></div>
+          <div class="alert alert-ok" style="margin-top:12px">File: <b id="formFilePath">No file connected</b> — Saving writes directly to this single Excel file. No repeated downloads. Change file path anytime from top bar or File & Backup page.</div>
+        </div>
+      </section>
+
+      <section id="page-register" class="hidden">
+        <div class="card">
+          <h2 style="font-size:18px;margin-bottom:10px">Expense Register</h2>
+          <div class="filters">
+            <input class="input" id="searchQ" placeholder="Search..." style="min-width:220px;flex:1" oninput="renderRegister()">
+            <input class="input" id="filterFrom" type="date" style="width:160px"><input class="input" id="filterTo" type="date" style="width:160px">
+            <select class="input" id="filterCat" style="width:160px" onchange="renderRegister()"><option value="">All Categories</option></select>
+            <select class="input" id="filterSub" style="width:160px" onchange="renderRegister()"><option value="">All Subcategories</option></select>
+            <select class="input" id="filterPay" style="width:150px" onchange="renderRegister()"><option value="">All Payments</option><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Debit/Credit Card</option><option>Other</option></select>
+            <button class="btn btn-ghost btn-sm" onclick="applyDateFilter()">Apply Date</button>
+            <button class="btn btn-ghost btn-sm" onclick="clearFilters()">Clear</button>
+          </div>
+          <div class="table-wrap"><table id="regTable"></table></div>
+        </div>
+      </section>
+
+      <section id="page-reports" class="hidden">
+        <div class="card">
+          <h2 style="font-size:18px">Reports</h2>
+          <div class="report-tabs" style="margin-top:12px">
+            <button class="active" onclick="setReportTab('daily',this)">Daily</button>
+            <button onclick="setReportTab('weekly',this)">Weekly</button>
+            <button onclick="setReportTab('monthly',this)">Monthly</button>
+            <button onclick="setReportTab('category',this)">Category-wise</button>
+            <button onclick="setReportTab('subcategory',this)">Subcategory-wise</button>
+            <button onclick="setReportTab('vendor',this)">Vendor-wise</button>
+            <button onclick="setReportTab('custom',this)">Custom</button>
+          </div>
+          <div id="reportControls"></div>
+          <div style="margin-top:12px" id="reportOut"></div>
+          <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-ghost btn-sm" onclick="printReport()">🖨 Print A4</button>
+            <button class="btn btn-primary btn-sm" onclick="printDaily80()">🧾 Print 80mm Daily</button>
+            <button class="btn btn-ghost btn-sm" onclick="downloadCSVReport()">⬇ CSV</button>
+            <button class="btn btn-ghost btn-sm" onclick="downloadExcelReport()">⬇ Excel</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="page-categories" class="hidden">
+        <div class="card">
+          <h2 style="font-size:18px">Categories & Subcategories</h2>
+          <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap">
+            <input class="input" id="newCatName" placeholder="New Category" style="width:200px"><input class="input" id="newSubName" placeholder="Subcategory" style="width:200px"><button class="btn btn-primary btn-sm" onclick="addCategory()">Add</button>
+          </div>
+          <div class="table-wrap"><table id="catTable"></table></div>
+        </div>
+      </section>
+
+      <section id="page-vendors" class="hidden">
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px"><h2 style="font-size:18px">Vendor Management</h2><button class="btn btn-primary btn-sm" onclick="openAddVendor()">➕ Add Vendor</button></div>
+          <div class="grid grid-2 hidden" style="margin-top:12px" id="addVendorForm">
+            <div class="card" style="border-style:dashed;background:#f9fafb"><h3>Add / Edit Vendor</h3>
+              <div class="field" style="margin-top:10px"><label>Vendor Name</label><input class="input" id="vName"></div>
+              <div class="field"><label>Contact Number</label><input class="input" id="vPhone"></div>
+              <div class="field"><label>Category</label><select class="input" id="vCat"></select></div>
+              <div class="field"><label>Notes</label><input class="input" id="vNote"></div>
+              <div style="display:flex;gap:8px;margin-top:8px"><button class="btn btn-primary btn-sm" onclick="saveVendor()">Save Vendor</button><button class="btn btn-ghost btn-sm" onclick="closeAddVendor()">Cancel</button></div>
+            </div>
+            <div class="card"><h3>Tip</h3><p style="font-size:13px;color:var(--muted);margin-top:6px">Vendors are saved in Excel VENDORS sheet and cached locally, so they persist after reopen.</p></div>
+          </div>
+          <div class="table-wrap" style="margin-top:12px"><table id="vendorTable"></table></div>
+        </div>
+      </section>
+
+      <section id="page-backup" class="hidden">
+        <div class="card">
+          <h2 style="font-size:18px">File & Backup - Single File Mode</h2>
+          <div class="alert alert-ok" id="backupInfo" style="margin-top:12px"></div>
+          <div class="grid grid-2" style="margin-top:12px">
+            <div class="card" style="border:2px dashed var(--primary);background:#f0fdf4"><h3>🔗 Connected Excel File</h3><p style="font-size:13px;color:var(--muted);margin:8px 0">This is your SINGLE source of truth. All expenses save here. Path can be changed anytime.</p><div style="font-size:12px;margin-bottom:8px"><b>Current:</b> <span id="connectedPath">No file connected</span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="connectFile()">📁 Connect / Change Excel File</button><button class="btn btn-ghost btn-sm" onclick="createNewWorkbook()">➕ Create New Single File</button></div><div style="font-size:11px;color:var(--muted);margin-top:8px">Chrome/Edge: File handle is stored in IndexedDB and auto-restores on next open. No re-connect needed if permission retained.</div></div>
+            <div class="card"><h3>💾 How Saving Works Now</h3><ul style="font-size:13px;color:var(--muted);margin:8px 0 0 18px;line-height:1.6"><li>When file is connected, <b>Save writes directly to that same file</b> — no new download every time.</li><li>Data also cached locally (IndexedDB) so old data shows after closing HTML.</li><li>Excel write access requires a supported Chromium browser and a user-selected workbook; local cache is recovery-only.</li><li>Use Download Backup only when you explicitly want a copy.</li></ul><div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="saveWorkbook(true)">🔄 Sync Now to Connected File</button><button class="btn btn-ghost btn-sm" onclick="downloadBackup()">⬇ Download Copy (Backup)</button></div></div>
+          </div>
+          <div style="margin-top:16px" class="grid grid-2">
+            <div class="card"><h3>Open Existing Workbook</h3><p style="font-size:13px;color:var(--muted);margin:8px 0">Pick your existing Excel. It becomes the single file for all future saves.</p><button class="btn btn-primary btn-sm" onclick="openWorkbook()">📂 Open & Connect</button><input type="file" id="importFile" accept=".xlsx,.xls" class="hidden" onchange="importWorkbookFile(this.files[0])"></div>
+            <div class="card"><h3>Restore from Backup</h3><input class="input" type="file" accept=".xlsx,.xls" onchange="importWorkbookFile(this.files[0])" style="margin-top:8px"><p style="font-size:11px;color:var(--muted);margin-top:6px">Importing merges into current single file. No overwrite unless empty.</p></div>
+          </div>
+          <div style="margin-top:12px" class="card"><h3>🧾 80mm Thermal Print</h3><p style="font-size:13px;color:var(--muted)">Daily expense summary optimized for 80mm receipt printer.</p><div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><input class="input" id="printDate80" type="date" style="width:160px"><button class="btn btn-primary btn-sm" onclick="printDaily80(document.getElementById('printDate80').value)">Print 80mm for Selected Date</button><button class="btn btn-ghost btn-sm" onclick="printDaily80()">Print Today 80mm</button></div></div>
+        </div>
+      </section>
+
+      <section id="page-settings" class="hidden">
+        <div class="card">
+          <h2 style="font-size:18px">Settings</h2>
+          <div class="grid grid-2" style="margin-top:12px">
+            <div class="field"><label>Hotel Name</label><input class="input" id="sHotel"></div>
+            <div class="field"><label>Currency</label><input class="input" id="sCurr" value="₹"></div>
+            <div class="field"><label>Application Name</label><input class="input" id="sApp"></div>
+            <div class="field"><label>Current Admin Password</label><input class="input" id="sOldPass" type="password" placeholder="Required to change"></div>
+            <div class="field"><label>New Password</label><input class="input" id="sNewPass" type="password"></div>
+            <div class="field"><label>Confirm New Password</label><input class="input" id="sConfPass" type="password"></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-primary btn-sm" onclick="saveSettings()">Save Settings</button><button class="btn btn-ghost btn-sm" onclick="clearLocalCache()">Clear Local Cache (Keep Excel)</button></div>
+          <div id="settingsMsg" style="margin-top:10px"></div><p style="font-size:11px;color:var(--muted);margin-top:8px">Security note: this is a local single-user convenience lock, not encryption. Protect the computer and Excel file with operating-system permissions.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="modal" id="detailModal"><div class="modal-box"><div style="display:flex;justify-content:space-between"><h3>Transaction Details</h3><button class="btn btn-ghost btn-sm" onclick="closeModal('detailModal')">✕</button></div><div id="detailBody" style="margin-top:12px"></div></div></div>
+<div class="modal" id="passModal"><div class="modal-box"><h3>Admin Confirmation</h3><p style="font-size:13px;color:var(--muted);margin:8px 0">Enter admin password.</p><input class="input" id="adminPassInput" type="password"><div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-primary btn-sm" onclick="confirmAdminPass()">Confirm</button><button class="btn btn-ghost btn-sm" onclick="closeModal('passModal')">Cancel</button></div><div id="passMsg" style="margin-top:8px;font-size:12px;color:var(--danger)"></div></div></div>
+
+<div id="printArea" class="print-root">
+  <div class="a4" id="printA4"></div>
+  <div class="thermal80" id="print80"></div>
+</div>
+
+<script>
+const DEFAULT_CATS = {
+ "STAFF & SALARY":["Staff Salary","Salary Advance","Staff Food","Staff Uniform","Staff Accommodation","Bonus / Incentives","Staff Welfare"],
+ "KITCHEN & RESTAURANT":["Vegetables","Fruits","Dairy Products","Grocery / Kirana","Atta / Rice / Pulses","Oil & Ghee","Spices","Bakery Items","Beverages","Mineral Water","Gas Cylinder","Restaurant Consumables"],
+ "HOUSEKEEPING":["Cleaning Materials","Room Amenities","Toiletries","Laundry","Linen","Guest Supplies"],
+ "MAINTENANCE & REPAIR":["Electrical","Plumbing","Carpentry","Civil Work","AC Repair","Equipment Repair","Painting","General Maintenance"],
+ "ELECTRICITY & UTILITIES":["Electricity Bill","Water Bill","Internet / Wi-Fi","Telephone","Diesel","Generator Expenses","Fuel"],
+ "ADMINISTRATION & OFFICE":["Stationery","Printing","Computer / Software","Internet Services","Office Supplies","Bank Charges","Professional Fees"],
+ "MARKETING & COMMISSION":["Online Travel Agent Commission","Travel Agent Commission","Advertisement","Social Media Marketing","Influencer Payment","Website Expenses","Promotional Material"],
+ "TRANSPORT & TRAVEL":["Vehicle Fuel","Vehicle Maintenance","Staff Travel","Transportation","Loading / Unloading","Parking"],
+ "GUEST & HOTEL OPERATIONS":["Guest Refund","Guest Compensation","Guest Requirements","Complimentary Expenses","Guest Transportation"],
+ "TAXES & GOVERNMENT":["GST / Tax Payments","Government Fees","Licences","Registration","Other Statutory Payments"],
+ "PROPERTY & OUTDOOR":["Gardening","Landscaping","Pest Control","Security","Parking Charges","Property Maintenance"],
+ "MISCELLANEOUS":["Other Expenses"]
+};
+let state={password:"1234",passwordHash:"",passwordSalt:"",hotelName:"Hotel Pachmarhi",appName:"HOTEL PACHMARHI – EXPENSE MANAGER",currency:"₹",expenses:[],categories:[],auditLog:[],vendorsMeta:{},lastSave:null,unsaved:false,fileHandle:null,fileName:"HotelPachmarhi_Expenses.xlsx",currentEditId:null,reportData:[],editVendorName:null,lastExcelSync:null,syncError:null};
+let pendingAction=null; let charts={};
+const DB_NAME="hotel_pachmarhi_db"; const STORE_HANDLE="fileHandles"; const STORE_DATA="appData";
+
+// IndexedDB helpers
+function idbOpen(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,2); r.onupgradeneeded=e=>{const db=e.target.result; if(!db.objectStoreNames.contains(STORE_HANDLE)) db.createObjectStore(STORE_HANDLE); if(!db.objectStoreNames.contains(STORE_DATA)) db.createObjectStore(STORE_DATA);}; r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});}
+async function idbSaveHandle(handle){try{const db=await idbOpen(); const tx=db.transaction(STORE_HANDLE,"readwrite"); tx.objectStore(STORE_HANDLE).put(handle,"excelFileHandle"); await new Promise((res,rej)=>{tx.oncomplete=res; tx.onerror=()=>rej(tx.error);});}catch(e){console.warn("IDB handle save failed",e);}}
+async function idbGetHandle(){try{const db=await idbOpen(); return await new Promise((res,rej)=>{const tx=db.transaction(STORE_HANDLE,"readonly"); const req=tx.objectStore(STORE_HANDLE).get("excelFileHandle"); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error);});}catch(e){return null;}}
+async function idbSaveAppData(){
+ const db=await idbOpen();
+ return new Promise((resolve,reject)=>{
+   const tx=db.transaction(STORE_DATA,"readwrite");
+   const clone=JSON.parse(JSON.stringify({...state,fileHandle:null,password:''}));
+   tx.objectStore(STORE_DATA).put(clone,"state");
+   tx.oncomplete=()=>resolve(true); tx.onerror=()=>reject(tx.error||new Error('Local cache write failed')); tx.onabort=()=>reject(tx.error||new Error('Local cache write aborted'));
+ });
+}
+async function idbLoadAppData(){try{const db=await idbOpen(); return await new Promise((res,rej)=>{const tx=db.transaction(STORE_DATA,"readonly"); const req=tx.objectStore(STORE_DATA).get("state"); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error);});}catch(e){return null;}}
+async function idbClear(){try{const db=await idbOpen(); await new Promise((res,rej)=>{const tx=db.transaction([STORE_HANDLE,STORE_DATA],"readwrite"); tx.objectStore(STORE_HANDLE).clear(); tx.objectStore(STORE_DATA).clear(); tx.oncomplete=res; tx.onerror=()=>rej(tx.error);});}catch(e){console.error(e);}}
+
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function parseExcelDate(v){
+ if(v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+ if(typeof v==='number' && isFinite(v)){const d=XLSX.SSF.parse_date_code(v); if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;}
+ const raw=String(v??'').trim(); if(/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0,10);
+ const m=raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/); if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+ return '';
+}
+function fmtDate(d){if(!d) return ""; const p=d.split("-"); if(p.length!==3) return d; return `${p[2]}-${p[1]}-${p[0]}`;}
+function todayISO(){const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function genId(){return "TXN-"+todayISO().replace(/-/g,"")+"-"+Date.now().toString(36).toUpperCase()+"-"+crypto.getRandomValues(new Uint32Array(1))[0].toString(36).toUpperCase();}
+function initCategories(){if(state.categories.length) return; let id=1; for(const [cat, subs] of Object.entries(DEFAULT_CATS)){ subs.forEach(s=>{state.categories.push({id:id++,name:cat,sub:s,status:"active"})}); }}
+
+async function tryRestore(){
+ const cached=await idbLoadAppData();
+ if(cached && typeof cached==='object'){
+   Object.assign(state,cached); state.fileHandle=null; state.currentEditId=null; state.reportData=[];
+   state.expenses=Array.isArray(cached.expenses)?cached.expenses:[];
+   state.categories=Array.isArray(cached.categories)?cached.categories:[];
+   state.auditLog=Array.isArray(cached.auditLog)?cached.auditLog:[];
+   state.vendorsMeta=cached.vendorsMeta&&typeof cached.vendorsMeta==='object'?cached.vendorsMeta:{};
+   const info=document.getElementById('restoreInfo'); if(info){info.textContent=`Recovery cache found: ${state.expenses.length} expense records. Connect/verify the Excel workbook before making changes.`; info.classList.remove('hidden');}
+ }
+ const handle=await idbGetHandle();
+ if(handle){
+   try{
+     const perm=await handle.queryPermission({mode:'readwrite'});
+     if(perm==='granted'){
+       state.fileHandle=handle;
+       const file=await handle.getFile(); state.fileName=file.name;
+       // Excel is authoritative: load the connected workbook and reconcile with cache.
+       await importWorkbookFile(file,true,{silent:true});
+     } else { state.fileHandle=handle; state.syncError='Excel permission must be granted again. Reconnect the workbook.'; }
+   }catch(e){ console.warn('Handle restore failed',e); state.fileHandle=null; state.syncError='Could not read the connected Excel workbook: '+e.message; }
+ }
+ updateSaveUI();
+}
+
+async function hashPassword(password,salt){const enc=new TextEncoder();const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:150000,hash:'SHA-256'},key,256);return [...new Uint8Array(bits)].map(b=>b.toString(16).padStart(2,'0')).join('');}
+async function doLogin(){
+ const v=document.getElementById('loginPass').value;
+ let valid=false;try{valid=state.passwordHash?((await hashPassword(v,state.passwordSalt))===state.passwordHash):(v===state.password);}catch(e){valid=v===state.password;}
+ if(valid){
+   document.getElementById('loginView').style.display='none';
+   document.getElementById('appView').style.display='block';
+   document.getElementById('loginPass').value='';
+   afterLogin();
+ }else{
+   const m=document.getElementById('loginMsg'); m.textContent='Incorrect password.'; m.classList.remove('hidden');
+ }
+}
+function lockApp(){document.getElementById('appView').style.display='none';document.getElementById('loginView').style.display='flex';resetInactivity();}
+let inactivityTimer=null; function resetInactivity(){clearTimeout(inactivityTimer); inactivityTimer=setTimeout(()=>{if(document.getElementById('appView').style.display!=='none') lockApp();},10*60*1000);} ['click','keydown','mousemove'].forEach(e=>document.addEventListener(e,resetInactivity));
+
+function afterLogin(){
+ initCategories();
+ document.getElementById('fDate').value=todayISO();
+ document.getElementById('sHotel').value=state.hotelName;
+ document.getElementById('sCurr').value=state.currency;
+ document.getElementById('sApp').value=state.appName;
+ document.getElementById('fsSupport').textContent = ('showOpenFilePicker' in window)?"Excel file access: supported":"Excel direct-write unavailable — use Chromium desktop to connect and sync";
+ document.getElementById('printDate80').value=todayISO();
+ refreshCategorySelects();
+ updateFileBadge();
+ renderDashboard(); renderRegister();
+ if(!state.expenses.length){go('backup');} else {go('dashboard');}
+}
+
+function updateFileBadge(){
+  const badge=document.getElementById('fileBadge'); const pathEl=document.getElementById('connectedPath'); const formPath=document.getElementById('formFilePath');
+  if(state.fileHandle && state.fileName){
+    if(badge){badge.textContent='📁 '+state.fileName; badge.className='file-badge';}
+    if(pathEl) pathEl.textContent=state.fileName+' (single file, auto-saves here)';
+    if(formPath) formPath.textContent=state.fileName;
+  } else {
+    if(badge){badge.textContent='No file connected - using local cache'; badge.className='file-badge no-file';}
+    if(pathEl) pathEl.textContent='No file connected — data is in local cache only. Connect a file to make it permanent.';
+    if(formPath) formPath.textContent='No file connected (local cache)';
+  }
+}
+
+function go(page){
+ document.querySelectorAll('[id^="page-"]').forEach(el=>el.classList.add('hidden'));
+ document.getElementById('page-'+page).classList.remove('hidden');
+ document.querySelectorAll('.nav a').forEach(a=>a.classList.remove('active'));
+ const active=document.querySelector(`.nav a[data-nav="${page}"]`); if(active) active.classList.add('active');
+ document.querySelector('.nav').classList.remove('open');
+ if(page==='dashboard') renderDashboard();
+ if(page==='register') renderRegister();
+ if(page==='categories') renderCatTable();
+ if(page==='vendors') renderVendors();
+ if(page==='backup') updateBackupInfo();
+ if(page==='reports') initReports();
+}
+function refreshCategorySelects(){
+ const cats=[...new Set(state.categories.filter(c=>c.status==='active').map(c=>c.name))].sort();
+ const subs=[...new Set(state.categories.filter(c=>c.status==='active').map(c=>c.sub))].sort();
+ const fCat=document.getElementById('fCat'); const filterCat=document.getElementById('filterCat'); const vCat=document.getElementById('vCat'); const filterSub=document.getElementById('filterSub');
+ const catSel=cat=>`<option value="${esc(cat)}">${esc(cat)}</option>`;
+ fCat.innerHTML=cats.map(catSel).join(''); filterCat.innerHTML='<option value="">All Categories</option>'+cats.map(catSel).join(''); if(vCat) vCat.innerHTML='<option value="">Select Category</option>'+cats.map(catSel).join('');
+ filterSub.innerHTML='<option value="">All Subcategories</option>'+subs.map(s=>`<option value="${s}">${s}</option>`).join('');
+ onCatChange(); refreshVendorDatalist();
+}
+function onCatChange(){const cat=document.getElementById('fCat').value; const subs=state.categories.filter(c=>c.name===cat && c.status==='active').map(c=>c.sub); document.getElementById('fSub').innerHTML=subs.map(s=>`<option>${esc(s)}</option>`).join('');}
+function refreshVendorDatalist(){const allVendors=new Set([...Object.keys(state.vendorsMeta), ...state.expenses.map(e=>e.Vendor).filter(Boolean)]); document.getElementById('vendorList').innerHTML=[...allVendors].map(v=>`<option value="${esc(v)}">`).join('');}
+function clearForm(){document.getElementById('fDate').value=todayISO(); document.getElementById('fAmount').value=''; document.getElementById('fPart').value=''; document.getElementById('fVendor').value=''; document.getElementById('fBillNo').value=''; document.getElementById('fRemarks').value=''; document.getElementById('fFile').value=''; document.getElementById('editBadge').classList.add('hidden'); state.currentEditId=null; document.getElementById('formMsg').innerHTML=''; document.getElementById('dupWarn').classList.add('hidden');}
+function cancelEdit(){clearForm(); go('register');}
+
+async function saveExpense(addAnother){
+ const date=document.getElementById('fDate').value, cat=document.getElementById('fCat').value, sub=document.getElementById('fSub').value;
+ const amt=Number(document.getElementById('fAmount').value), pay=document.getElementById('fPay').value, vendor=document.getElementById('fVendor').value.trim();
+ const billNo=document.getElementById('fBillNo').value.trim(), part=document.getElementById('fPart').value.trim(), remarks=document.getElementById('fRemarks').value.trim();
+ const fileInput=document.getElementById('fFile'); let attachRef='',attachData=null;
+ if(fileInput.files[0]){const f=fileInput.files[0]; if(f.size>5*1024*1024){document.getElementById('formMsg').innerHTML='<div class="alert alert-warn">Receipt must be 5 MB or smaller.</div>';return;} attachRef=f.name; attachData=await fileToDataURL(f);}
+ if(!date||!cat||!sub||!Number.isFinite(amt)||amt<=0){document.getElementById('formMsg').innerHTML='<div class="alert alert-warn">Enter a valid date, category, subcategory and amount greater than zero.</div>';return;}
+ if(date>todayISO()){if(!confirm('This expense date is in the future. Continue?')) return;}
+ if(!state.fileHandle){document.getElementById('formMsg').innerHTML='<div class="alert alert-warn">Excel workbook is not connected. Connect your primary Excel file before saving an expense. Your current form has not been cleared.</div>';return;}
+ let record;
+ if(state.currentEditId){
+   const idx=state.expenses.findIndex(e=>e.TransactionID===state.currentEditId);
+   if(idx<0){document.getElementById('formMsg').innerHTML='<div class="alert alert-warn">This transaction no longer exists. Refresh the register and try again.</div>';return;}
+   const old={...state.expenses[idx]}; record={...old,Date:date,Category:cat,Subcategory:sub,Particulars:part,Amount:amt,PaymentMode:pay,Vendor:vendor,BillNumber:billNo,Remarks:remarks,ModifiedAt:new Date().toISOString()};
+   if(fileInput.files[0]){record.BillAttachment=attachRef;record._attachData=attachData;}
+   state.expenses[idx]=record; state.auditLog.push({TransactionID:record.TransactionID,Action:'EDIT',OldValue:auditSnapshot(old),NewValue:auditSnapshot(record),ModifiedBy:'Admin',DateTime:new Date().toISOString(),Reason:'Edited'});
+ }else{
+   let txnId=genId(); while(state.expenses.some(e=>e.TransactionID===txnId)) txnId=genId();
+   record={TransactionID:txnId,Date:date,Category:cat,Subcategory:sub,Particulars:part,Amount:amt,PaymentMode:pay,Vendor:vendor,BillNumber:billNo,Remarks:remarks,CreatedAt:new Date().toISOString(),ModifiedAt:new Date().toISOString(),BillAttachment:attachRef,_attachData:attachData};
+   state.expenses.push(record); state.auditLog.push({TransactionID:txnId,Action:'CREATE',OldValue:'',NewValue:auditSnapshot(record),ModifiedBy:'Admin',DateTime:new Date().toISOString(),Reason:'Created'});
+   if(vendor&&!state.vendorsMeta[vendor]) state.vendorsMeta[vendor]={phone:'',category:cat,note:'Auto-created'};
+ }
+ state.unsaved=true; updateSaveUI(); document.getElementById('formMsg').innerHTML='<div class="alert alert-warn">Saving to Excel…</div>';
+ const ok=await saveWorkbook(false);
+ if(!ok){state.currentEditId=record.TransactionID;document.getElementById('editBadge').classList.remove('hidden');document.getElementById('formMsg').innerHTML='<div class="alert alert-warn">Excel save failed. The recovery cache was retained, but the workbook was not updated. Reconnect Excel and click Save again; this transaction will be updated rather than duplicated.</div>';return;}
+ document.getElementById('formMsg').innerHTML='<div class="alert alert-ok">✓ Saved and verified in Excel: '+esc(state.fileName)+'</div>';
+ refreshVendorDatalist(); renderDashboard(); renderRegister();
+ if(addAnother){clearForm();document.getElementById('fDate').value=date;} else {clearForm();go('dashboard');}
+}
+
+function auditSnapshot(e){const copy={...e};if(copy._attachData){copy._attachData='[stored in ATTACHMENTS sheet]';}return JSON.stringify(copy);}
+function fileToDataURL(file){return new Promise((res,rej)=>{const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file);});}
+
+function buildWorkbook(){
+ const wb=XLSX.utils.book_new();
+ const expHeader=["Transaction ID","Date","Category","Subcategory","Particulars","Amount","Payment Mode","Vendor","Bill Number","Remarks","Created At","Modified At","BillAttachment"];
+ const expRows=state.expenses.map(e=>[e.TransactionID,e.Date,e.Category,e.Subcategory,e.Particulars,e.Amount,e.PaymentMode,e.Vendor,e.BillNumber,e.Remarks,e.CreatedAt,e.ModifiedAt,e.BillAttachment||""]);
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([expHeader,...expRows]),"EXPENSES");
+ const catHeader=["Category ID","Category Name","Subcategory","Status"]; const catRows=state.categories.map(c=>[c.id,c.name,c.sub,c.status]); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([catHeader,...catRows]),"CATEGORIES");
+ const auditHeader=["Transaction ID","Action","Old Value","New Value","Modified By","Date & Time","Reason"]; const auditRows=state.auditLog.map(a=>[a.TransactionID,a.Action,a.OldValue,a.NewValue,a.ModifiedBy,a.DateTime,a.Reason]); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([auditHeader,...auditRows]),"AUDIT LOG");
+ const dailyMap={}; state.expenses.forEach(e=>{if(!dailyMap[e.Date]) dailyMap[e.Date]={total:0,cash:0,upi:0,bank:0,other:0}; dailyMap[e.Date].total+=e.Amount; const p=e.PaymentMode; if(p==='Cash') dailyMap[e.Date].cash+=e.Amount; else if(p==='UPI') dailyMap[e.Date].upi+=e.Amount; else if(p.includes('Bank')||p.includes('Card')) dailyMap[e.Date].bank+=e.Amount; else dailyMap[e.Date].other+=e.Amount;}); const dailyRows=Object.entries(dailyMap).sort().map(([d,v])=>[d,v.total,v.cash,v.upi,v.bank,v.other]); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Date","Total Expenses","Cash","UPI","Bank","Other"],...dailyRows]),"DAILY SUMMARY");
+ const monthMap={}; state.expenses.forEach(e=>{const m=e.Date.slice(0,7); if(!monthMap[m]) monthMap[m]={total:0,cash:0,upi:0,bank:0,other:0,count:0}; monthMap[m].total+=e.Amount; monthMap[m].count++; const p=e.PaymentMode; if(p==='Cash') monthMap[m].cash+=e.Amount; else if(p==='UPI') monthMap[m].upi+=e.Amount; else if(p.includes('Bank')||p.includes('Card')) monthMap[m].bank+=e.Amount; else monthMap[m].other+=e.Amount;}); const monthRows=Object.entries(monthMap).sort().map(([m,v])=>[m,v.total,v.cash,v.upi,v.bank,v.other,v.count]); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Month","Total Expenses","Cash","UPI","Bank","Other","Transaction Count"],...monthRows]),"MONTHLY SUMMARY");
+ const vHeader=["Vendor Name","Contact Number","Category","Notes","Total Purchases","Transaction Count"]; const vRows=Object.entries(state.vendorsMeta).map(([name,meta])=>{const calc=state.expenses.filter(e=>e.Vendor===name); const total=calc.reduce((s,e)=>s+e.Amount,0); return [name,meta.phone||"",meta.category||"",meta.note||"",total,calc.length];}); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([vHeader,...vRows]),"VENDORS");
+ const sett=[["Key","Value"],["Application Name",state.appName],["Hotel Name",state.hotelName],["Currency",state.currency],["Password Hash",state.passwordHash||""],["Password Salt",state.passwordSalt||""],["Last Save",state.lastSave||""]]; XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sett),"SETTINGS");
+ const attRows=state.expenses.filter(e=>e._attachData).map(e=>[e.TransactionID,e.BillAttachment||'',e._attachData]);
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Transaction ID","File Name","Data URL"],...attRows]),"ATTACHMENTS");
+ return wb;
+}
+
+async function saveWorkbook(showToast){
+ if(!state.fileHandle){state.syncError='No Excel workbook connected.';state.unsaved=true;await idbSaveAppData();updateSaveUI();if(showToast)alert('Excel workbook is not connected. Data is only in the recovery cache. Connect Excel to make it permanent.');return false;}
+ // Cache first for crash recovery, but never label this as an Excel save.
+ try{await idbSaveAppData();}catch(e){state.syncError='Local recovery cache failed: '+e.message;state.unsaved=true;updateSaveUI();if(showToast)alert(state.syncError);return false;}
+ let writable=null;
+ try{
+   let permission=await state.fileHandle.queryPermission({mode:'readwrite'});
+   if(permission!=='granted') permission=await state.fileHandle.requestPermission({mode:'readwrite'});
+   if(permission!=='granted') throw new Error('Read/write permission was not granted.');
+   // Preserve workbook sheets not owned by this application.
+   let existingWb=null;
+   try{const f=await state.fileHandle.getFile(); if(f.size){const ab=await f.arrayBuffer(); existingWb=XLSX.read(ab,{type:'array'});}}catch(readErr){throw new Error('Could not read existing workbook safely: '+readErr.message);}
+   const generated=buildWorkbook();
+   const owned=['EXPENSES','CATEGORIES','AUDIT LOG','DAILY SUMMARY','MONTHLY SUMMARY','VENDORS','SETTINGS','ATTACHMENTS'];
+   const wb=existingWb||XLSX.utils.book_new();
+   owned.forEach(name=>{if(wb.Sheets[name]){delete wb.Sheets[name];wb.SheetNames=wb.SheetNames.filter(n=>n!==name);}});
+   owned.forEach(name=>{if(generated.Sheets[name])XLSX.utils.book_append_sheet(wb,generated.Sheets[name],name);});
+   const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+   writable=await state.fileHandle.createWritable(); await writable.write(out); await writable.close(); writable=null;
+   // Verify the saved file is readable and has matching transaction count.
+   const verifyFile=await state.fileHandle.getFile(); const verifyWb=XLSX.read(await verifyFile.arrayBuffer(),{type:'array'});
+   if(!verifyWb.Sheets.EXPENSES) throw new Error('Verification failed: EXPENSES sheet missing after write.');
+   const verifyRows=XLSX.utils.sheet_to_json(verifyWb.Sheets.EXPENSES,{defval:''});
+   if(verifyRows.length!==state.expenses.length) throw new Error(`Verification failed: expected ${state.expenses.length} rows, found ${verifyRows.length}.`);
+   state.lastSave=new Date().toISOString();state.lastExcelSync=state.lastSave;state.syncError=null;state.unsaved=false;
+   await idbSaveAppData();updateSaveUI();updateFileBadge();if(showToast)alert('Excel sync and verification successful: '+state.fileName);return true;
+ }catch(e){
+   if(writable){try{await writable.abort();}catch(_){}}
+   state.syncError=e.message;state.unsaved=true;
+   try{await idbSaveAppData();}catch(cacheErr){console.error('Recovery cache also failed',cacheErr);}
+   updateSaveUI();if(showToast)alert('Excel sync FAILED. Recovery cache retained. '+e.message);return false;
+ }
+}
+
+function downloadBackup(){
+ // Explicit backup download only
+ const wb=buildWorkbook(); const out=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+ const blob=new Blob([out],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=(state.fileName||'HotelPachmarhi_Expenses.xlsx').replace(/\.xlsx?$/i,'')+'_Backup_'+todayISO()+'.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+
+function updateSaveUI(){
+ const dot=document.getElementById('saveDot'); const txt=document.getElementById('saveText'); const rc=document.getElementById('recCount');
+ if(dot) dot.className='dot'+(state.unsaved?' unsaved':'');
+ if(txt) txt.textContent=state.syncError?'Excel sync failed':(state.unsaved?'Not synced to Excel':(state.lastExcelSync?'Excel verified '+new Date(state.lastExcelSync).toLocaleString():'No verified Excel save'));
+ if(rc){rc.textContent='• '+state.expenses.length+' records'; rc.classList.remove('hidden');}
+ const bi=document.getElementById('backupInfo'); if(bi) bi.innerHTML=`<b>Primary Excel:</b> ${esc(state.fileName)} • <b>Records:</b> ${state.expenses.length} • <b>Vendors:</b> ${Object.keys(state.vendorsMeta).length} • <b>Connected:</b> ${state.fileHandle?'Yes':'No'} • <b>Last verified sync:</b> ${state.lastExcelSync?new Date(state.lastExcelSync).toLocaleString():'never'} ${state.syncError?'<br><b style="color:#b91c1c">Sync error: '+esc(state.syncError)+'</b>':''}`;
+ updateFileBadge();
+}
+
+async function connectFile(){await openWorkbook();}
+async function changeFilePath(){await openWorkbook();}
+
+async function openWorkbook(){
+ if('showOpenFilePicker' in window){
+   try{
+     const [handle]=await window.showOpenFilePicker({types:[{description:'Excel',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx','.xls']}}]});
+     state.fileHandle=handle; await idbSaveHandle(handle);
+     const file=await handle.getFile(); state.fileName=file.name;
+     await importWorkbookFile(file, true);
+   }catch(e){ if(e.name!=='AbortError') alert(e.message); }
+ }else{
+   document.getElementById('importFile').click();
+ }
+}
+function createNewWorkbook(){
+ if(state.expenses.length && !confirm('Create a new blank workbook? Current in-memory records will be replaced. Download a backup first if needed.')) return;
+ if('showSaveFilePicker' in window){
+   (async()=>{
+     try{
+       const handle=await window.showSaveFilePicker({suggestedName:'HotelPachmarhi_Expenses_'+todayISO()+'.xlsx', types:[{description:'Excel',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]});
+       state.fileHandle=handle; state.fileName=(await handle.getFile()).name||'HotelPachmarhi_Expenses_'+todayISO()+'.xlsx'; await idbSaveHandle(handle);
+       state.expenses=[]; state.auditLog=[]; state.vendorsMeta={}; state.unsaved=true; initCategories(); await saveWorkbook(false); updateSaveUI(); go('dashboard'); renderDashboard();
+     }catch(e){ if(e.name!=='AbortError') alert(e.message); }
+   })();
+ }else{
+   state.expenses=[]; state.auditLog=[]; state.vendorsMeta={}; state.fileHandle=null; state.fileName='HotelPachmarhi_Expenses_'+todayISO()+'.xlsx'; state.unsaved=true; initCategories(); updateSaveUI(); idbSaveAppData(); go('dashboard');
+ }
+}
+
+async function importWorkbookFile(file,isConnect,options={}){
+ if(!file)return;
+ try{
+   const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true});
+   const expSheet=wb.Sheets.EXPENSES;if(!expSheet)throw new Error('EXPENSES sheet not found');
+   const rows=XLSX.utils.sheet_to_json(expSheet,{defval:''});
+   const parsed=rows.map((r,i)=>({TransactionID:String(r['Transaction ID']||r.TransactionID||('IMPORTED-'+Date.now()+'-'+i)),Date:parseExcelDate(r.Date),Category:String(r.Category||''),Subcategory:String(r.Subcategory||''),Particulars:String(r.Particulars||r.Description||''),Amount:Number(r.Amount),PaymentMode:String(r['Payment Mode']||r.PaymentMode||'Cash'),Vendor:String(r.Vendor||''),BillNumber:String(r['Bill Number']||r.BillNumber||''),Remarks:String(r.Remarks||''),CreatedAt:r['Created At']||r.CreatedAt||new Date().toISOString(),ModifiedAt:r['Modified At']||r.ModifiedAt||new Date().toISOString(),BillAttachment:String(r.BillAttachment||'')})).filter(r=>r.Date&&Number.isFinite(r.Amount)&&r.Amount>0);
+   if(isConnect){state.expenses=parsed;}else{const map=new Map(state.expenses.map(e=>[e.TransactionID,e]));parsed.forEach(r=>{if(!map.has(r.TransactionID))map.set(r.TransactionID,r);});state.expenses=[...map.values()];}
+   if(wb.Sheets.CATEGORIES){const cr=XLSX.utils.sheet_to_json(wb.Sheets.CATEGORIES,{defval:''});if(cr.length)state.categories=cr.map((r,i)=>({id:Number(r['Category ID'])||i+1,name:String(r['Category Name']||r.Category||''),sub:String(r.Subcategory||''),status:String(r.Status||'active')})).filter(c=>c.name&&c.sub);}
+   if(wb.Sheets.VENDORS){const vr=XLSX.utils.sheet_to_json(wb.Sheets.VENDORS,{defval:''});vr.forEach(r=>{const name=String(r['Vendor Name']||r.Vendor||'');if(name)state.vendorsMeta[name]={phone:String(r['Contact Number']||''),category:String(r.Category||''),note:String(r.Notes||'')};});}
+   if(wb.Sheets['AUDIT LOG']){const ar=XLSX.utils.sheet_to_json(wb.Sheets['AUDIT LOG'],{defval:''});state.auditLog=ar.map(r=>({TransactionID:r['Transaction ID']||'',Action:r.Action||'',OldValue:r['Old Value']||'',NewValue:r['New Value']||'',ModifiedBy:r['Modified By']||'',DateTime:r['Date & Time']||'',Reason:r.Reason||''}));}
+   if(wb.Sheets.SETTINGS){const sr=XLSX.utils.sheet_to_json(wb.Sheets.SETTINGS,{defval:''});const map={};sr.forEach(r=>{map[r.Key||r.key]=r.Value||r.value||'';});if(map['Hotel Name'])state.hotelName=String(map['Hotel Name']);if(map['Application Name'])state.appName=String(map['Application Name']);if(map.Currency)state.currency=String(map.Currency);if(isConnect&&map['Password Hash']&&map['Password Salt']){state.passwordHash=String(map['Password Hash']);state.passwordSalt=String(map['Password Salt']);state.password='';}else if(isConnect&&map.Password){state.passwordSalt=crypto.randomUUID();state.passwordHash=await hashPassword(String(map.Password),state.passwordSalt);state.password='';}}
+   if(wb.Sheets.ATTACHMENTS){const ar=XLSX.utils.sheet_to_json(wb.Sheets.ATTACHMENTS,{defval:''});const byId=new Map(ar.map(r=>[String(r['Transaction ID']),{name:String(r['File Name']||''),data:String(r['Data URL']||'')} ]));state.expenses.forEach(e=>{const a=byId.get(e.TransactionID);if(a&&a.data){e.BillAttachment=a.name||e.BillAttachment;e._attachData=a.data;}});}
+   state.fileName=file.name;state.fileHandle=isConnect?state.fileHandle:null;state.unsaved=!isConnect;state.syncError=null;
+   if(isConnect){state.lastExcelSync=new Date().toISOString();state.lastSave=state.lastExcelSync;}
+   await idbSaveAppData();updateSaveUI();refreshCategorySelects();renderDashboard();renderRegister();updateFileBadge();
+   if(!options.silent)alert(`${isConnect?'Connected':'Imported'} ${parsed.length} valid expense rows from ${file.name}.`);
+ }catch(e){if(!options.silent)alert('Import failed: '+e.message);else throw e;}
+}
+
+function renderDashboard(){
+ const kpi=document.getElementById('kpiGrid'); if(!kpi) return;
+ const today=todayISO(); const now=new Date(); const startWeek=new Date(now.getFullYear(),now.getMonth(),now.getDate()-((now.getDay()+6)%7)); const startWeekISO=`${startWeek.getFullYear()}-${String(startWeek.getMonth()+1).padStart(2,'0')}-${String(startWeek.getDate()).padStart(2,'0')}`; const thisMonth= today.slice(0,7);
+ const todayTotal=state.expenses.filter(e=>e.Date===today).reduce((s,e)=>s+e.Amount,0); const weekTotal=state.expenses.filter(e=>e.Date>=startWeekISO&&e.Date<=today).reduce((s,e)=>s+e.Amount,0); const monthTotal=state.expenses.filter(e=>e.Date.startsWith(thisMonth)).reduce((s,e)=>s+e.Amount,0); const cashTotal=state.expenses.filter(e=>e.PaymentMode==='Cash').reduce((s,e)=>s+e.Amount,0); const upiBank=state.expenses.filter(e=>['UPI','Bank Transfer','Debit/Credit Card'].includes(e.PaymentMode)).reduce((s,e)=>s+e.Amount,0); const count=state.expenses.length;
+ kpi.innerHTML=`<div class="card"><div class="kpi"><div><h3>Today's Total</h3><div class="val">${state.currency} ${todayTotal.toLocaleString('en-IN')}</div></div><div class="icon">📅</div></div></div><div class="card"><div class="kpi"><div><h3>This Week</h3><div class="val">${state.currency} ${weekTotal.toLocaleString('en-IN')}</div></div><div class="icon">📆</div></div></div><div class="card"><div class="kpi"><div><h3>This Month</h3><div class="val">${state.currency} ${monthTotal.toLocaleString('en-IN')}</div></div><div class="icon">💹</div></div></div><div class="card"><div class="kpi"><div><h3>Total Transactions</h3><div class="val">${count}</div><div style="font-size:12px;color:var(--muted)">Cash ${state.currency}${cashTotal.toLocaleString('en-IN')} • UPI/Bank ${state.currency}${upiBank.toLocaleString('en-IN')}</div></div><div class="icon">🧾</div></div></div>`;
+ const monthExps=state.expenses.filter(e=>e.Date.startsWith(thisMonth)); const catMap={}; monthExps.forEach(e=>{catMap[e.Category]=(catMap[e.Category]||0)+e.Amount;}); drawPie('catPie', Object.keys(catMap), Object.values(catMap));
+ const days=[...Array(14)].map((_,i)=>{const d=new Date(); d.setDate(d.getDate()-13+i); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}); const dailyVals=days.map(d=>state.expenses.filter(e=>e.Date===d).reduce((s,e)=>s+e.Amount,0)); drawBar('dailyBar', days.map(fmtDate), dailyVals);
+ const months=[...Array(6)].map((_,i)=>{const d=new Date(); d.setMonth(d.getMonth()-5+i); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}); const monthVals=months.map(m=>state.expenses.filter(e=>e.Date.startsWith(m)).reduce((s,e)=>s+e.Amount,0)); drawLine('monthLine', months, monthVals);
+ const payModes=['Cash','UPI','Bank Transfer','Debit/Credit Card','Other']; const payVals=payModes.map(p=>state.expenses.filter(e=>e.PaymentMode===p).reduce((s,e)=>s+e.Amount,0)); drawPie('payChart', payModes, payVals);
+ const todayByCat={}; state.expenses.filter(e=>e.Date===today).forEach(e=>{todayByCat[e.Category]=(todayByCat[e.Category]||0)+e.Amount;}); const highestCat=Object.entries(todayByCat).sort((a,b)=>b[1]-a[1])[0]; const highestExp=[...state.expenses].sort((a,b)=>b.Amount-a.Amount)[0];
+ document.getElementById('todaySummary').innerHTML=`<div style="font-size:12px;color:var(--muted);line-height:1.6"><b>Highest today:</b> ${highestCat?highestCat[0]+' ₹'+highestCat[1].toLocaleString('en-IN'):'—'}<br><b>Highest expense:</b> ${highestExp?(highestExp.Particulars||highestExp.Subcategory)+' ₹'+highestExp.Amount.toLocaleString('en-IN'):'—'}</div>`;
+ const last10=[...state.expenses].sort((a,b)=>new Date(b.CreatedAt)-new Date(a.CreatedAt)).slice(0,10);
+ document.getElementById('last10Table').innerHTML='<tr><th>Date</th><th>Particulars</th><th>Category</th><th>Amount</th><th>Vendor</th></tr>'+last10.map(e=>`<tr><td>${fmtDate(e.Date)}</td><td>${(e.Particulars||e.Subcategory).slice(0,40)}</td><td>${e.Category}</td><td>${state.currency}${e.Amount.toLocaleString('en-IN')}</td><td>${e.Vendor}</td></tr>`).join('');
+}
+function drawPie(id, labels, data){const ctx=document.getElementById(id); if(!ctx) return; if(charts[id]) charts[id].destroy(); charts[id]=new Chart(ctx,{type:'doughnut',data:{labels, datasets:[{data, backgroundColor:['#0f3d2e','#14b8a6','#34d399','#f59e0b','#f87171','#60a5fa','#a78bfa','#fbbf24','#fb7185','#4ade80']}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}}}});}
+function drawBar(id, labels, data){const ctx=document.getElementById(id); if(!ctx) return; if(charts[id]) charts[id].destroy(); charts[id]=new Chart(ctx,{type:'bar',data:{labels, datasets:[{label:'₹', data, backgroundColor:'#0f3d2e'}]},options:{responsive:true,plugins:{legend:{display:false}}}});}
+function drawLine(id, labels, data){const ctx=document.getElementById(id); if(!ctx) return; if(charts[id]) charts[id].destroy(); charts[id]=new Chart(ctx,{type:'line',data:{labels, datasets:[{label:'Expenses', data, borderColor:'#0f3d2e', backgroundColor:'rgba(15,61,46,.12)', tension:.35, fill:true}]},options:{responsive:true,plugins:{legend:{display:false}}}});}
+
+function renderRegister(){
+ const q=(document.getElementById('searchQ').value||'').toLowerCase(); const from=document.getElementById('filterFrom').value; const to=document.getElementById('filterTo').value; const cat=document.getElementById('filterCat').value; const sub=document.getElementById('filterSub').value; const pay=document.getElementById('filterPay').value;
+ let rows=[...state.expenses];
+ if(q) rows=rows.filter(e=>[e.TransactionID,e.Date,e.Particulars,e.Vendor,e.BillNumber,e.Category,e.Subcategory,e.PaymentMode,e.Remarks].join(' ').toLowerCase().includes(q));
+ if(from) rows=rows.filter(e=>e.Date>=from); if(to) rows=rows.filter(e=>e.Date<=to); if(cat) rows=rows.filter(e=>e.Category===cat); if(sub) rows=rows.filter(e=>e.Subcategory===sub); if(pay) rows=rows.filter(e=>e.PaymentMode===pay);
+ rows.sort((a,b)=> new Date(b.Date)-new Date(a.Date) || b.Amount-a.Amount); state.reportData=rows;
+ document.getElementById('regTable').innerHTML='<tr><th>Date</th><th>Txn ID</th><th>Particulars</th><th>Category/Sub</th><th>Amount</th><th>Pay</th><th>Vendor</th><th>Actions</th></tr>'+rows.map(e=>`<tr><td>${fmtDate(e.Date)}</td><td style="font-size:11px">${esc(e.TransactionID)}</td><td title="${esc(e.Particulars)}">${esc((e.Particulars||e.Subcategory).slice(0,32))}</td><td>${esc(e.Category)}/${esc(e.Subcategory)}</td><td><b>${state.currency}${e.Amount.toLocaleString('en-IN')}</b></td><td>${esc(e.PaymentMode)}</td><td>${esc(e.Vendor||'')}</td><td><button class="btn btn-ghost btn-sm" onclick="viewTxn(decodeURIComponent('${encodeURIComponent(e.TransactionID)}'))">👁</button><button class="btn btn-ghost btn-sm" onclick="editTxn(decodeURIComponent('${encodeURIComponent(e.TransactionID)}'))">✏️</button><button class="btn btn-ghost btn-sm" onclick="dupTxn(decodeURIComponent('${encodeURIComponent(e.TransactionID)}'))">⎘</button><button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="delTxn(decodeURIComponent('${encodeURIComponent(e.TransactionID)}'))">🗑</button></td></tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted)">No transactions</td></tr>';
+}
+function applyDateFilter(){renderRegister();}
+function clearFilters(){['searchQ','filterFrom','filterTo','filterCat','filterSub','filterPay'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';}); renderRegister();}
+function viewTxn(id){const e=state.expenses.find(x=>x.TransactionID===id); if(!e) return; document.getElementById('detailBody').innerHTML=`<div class="grid grid-2"><div><b>Date:</b> ${fmtDate(e.Date)}</div><div><b>Amount:</b> ${state.currency}${e.Amount.toLocaleString('en-IN')}</div><div><b>Category:</b> ${esc(e.Category)}</div><div><b>Subcategory:</b> ${esc(e.Subcategory)}</div><div><b>Payment:</b> ${esc(e.PaymentMode)}</div><div><b>Vendor:</b> ${esc(e.Vendor||'-')}</div><div><b>Bill No:</b> ${esc(e.BillNumber||'-')}</div><div><b>Particulars:</b> ${esc(e.Particulars||'-')}</div><div style="grid-column:1/-1"><b>Remarks:</b> ${esc(e.Remarks||'-')}</div><div><b>Created:</b> ${esc(e.CreatedAt)}</div><div><b>Modified:</b> ${esc(e.ModifiedAt)}</div><div style="grid-column:1/-1"><b>Receipt:</b> ${e._attachData?`<button class="btn btn-ghost btn-sm" onclick="downloadAttachment(decodeURIComponent('${encodeURIComponent(e.TransactionID)}'))">Download ${esc(e.BillAttachment||'attachment')}</button>`:esc(e.BillAttachment||'Not attached')}</div></div>`; document.getElementById('detailModal').classList.add('open');}
+function downloadAttachment(id){const e=state.expenses.find(x=>x.TransactionID===id);if(!e||!e._attachData)return alert('Receipt data is not available in this workbook/cache.');const a=document.createElement('a');a.href=e._attachData;a.download=e.BillAttachment||('Receipt_'+id);document.body.appendChild(a);a.click();a.remove();}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+function editTxn(id){const e=state.expenses.find(x=>x.TransactionID===id); if(!e) return; state.currentEditId=id; document.getElementById('fDate').value=e.Date; document.getElementById('fCat').value=e.Category; onCatChange(); document.getElementById('fSub').value=e.Subcategory; document.getElementById('fAmount').value=e.Amount; document.getElementById('fPay').value=e.PaymentMode; document.getElementById('fVendor').value=e.Vendor; document.getElementById('fBillNo').value=e.BillNumber; document.getElementById('fPart').value=e.Particulars; document.getElementById('fRemarks').value=e.Remarks; document.getElementById('editBadge').classList.remove('hidden'); go('add');}
+function dupTxn(id){const e=state.expenses.find(x=>x.TransactionID===id); if(!e) return; state.currentEditId=null; document.getElementById('fDate').value=todayISO(); document.getElementById('fCat').value=e.Category; onCatChange(); document.getElementById('fSub').value=e.Subcategory; document.getElementById('fAmount').value=e.Amount; document.getElementById('fPay').value=e.PaymentMode; document.getElementById('fVendor').value=e.Vendor; document.getElementById('fBillNo').value=''; document.getElementById('fPart').value=e.Particulars; document.getElementById('fRemarks').value='Duplicated from '+id; go('add');}
+function delTxn(id){pendingAction=async()=>{const idx=state.expenses.findIndex(x=>x.TransactionID===id);if(idx>-1){const e=state.expenses[idx];state.auditLog.push({TransactionID:id,Action:'DELETE',OldValue:auditSnapshot(e),NewValue:'',ModifiedBy:'Admin',DateTime:new Date().toISOString(),Reason:'Deleted'});state.expenses.splice(idx,1);state.unsaved=true;updateSaveUI();const ok=await saveWorkbook(false);renderRegister();renderDashboard();if(!ok)alert('Deletion is in recovery cache but NOT synced to Excel. Reconnect and sync before relying on the workbook.');}};document.getElementById('adminPassInput').value='';document.getElementById('passMsg').textContent='';document.getElementById('passModal').classList.add('open');}
+
+function confirmAdminPass(){const v=document.getElementById('adminPassInput').value; if(v!==state.password){document.getElementById('passMsg').textContent='Incorrect password'; return;} closeModal('passModal'); if(pendingAction) pendingAction(); pendingAction=null;}
+
+let currentReport='daily';
+function initReports(){setReportTab('daily', document.querySelector('.report-tabs button'));}
+function setReportTab(tab, btn){
+ currentReport=tab; document.querySelectorAll('.report-tabs button').forEach(b=>b.classList.remove('active')); if(btn) btn.classList.add('active');
+ let html=''; const catOpts=[...new Set(state.categories.map(c=>c.name))].map(c=>`<option>${c}</option>`).join(''); const subOpts=[...new Set(state.categories.map(c=>c.sub))].map(s=>`<option>${s}</option>`).join(''); const vendorOpts=Object.keys(state.vendorsMeta).concat([...new Set(state.expenses.map(e=>e.Vendor).filter(Boolean))]); const uniqV=[...new Set(vendorOpts)].map(v=>`<option>${v}</option>`).join('');
+ if(tab==='daily') html=`<div style="display:flex;gap:8px"><input class="input" id="rDate" type="date" value="${todayISO()}" style="width:180px"><button class="btn btn-primary btn-sm" onclick="genDaily()">Generate</button><button class="btn btn-ghost btn-sm" onclick="printDaily80(document.getElementById('rDate').value)">🧾 80mm Print</button></div>`;
+ if(tab==='weekly') html=`<div style="display:flex;gap:8px;flex-wrap:wrap"><input class="input" id="rWFrom" type="date" style="width:160px"><input class="input" id="rWTo" type="date" style="width:160px"><button class="btn btn-primary btn-sm" onclick="genWeekly()">Generate</button></div>`;
+ if(tab==='monthly') html=`<div style="display:flex;gap:8px"><input class="input" id="rMonth" type="month" value="${todayISO().slice(0,7)}" style="width:180px"><button class="btn btn-primary btn-sm" onclick="genMonthly()">Generate</button></div>`;
+ if(tab==='category') html=`<div style="display:flex;gap:8px;flex-wrap:wrap"><select class="input" id="rCat" style="width:200px">${catOpts}</select><input class="input" id="rCFrom" type="date" style="width:150px"><input class="input" id="rCTo" type="date" style="width:150px"><button class="btn btn-primary btn-sm" onclick="genCat()">Generate</button></div>`;
+ if(tab==='subcategory') html=`<div style="display:flex;gap:8px;flex-wrap:wrap"><select class="input" id="rSub" style="width:200px">${subOpts}</select><input class="input" id="rSFrom" type="date" style="width:150px"><input class="input" id="rSTo" type="date" style="width:150px"><button class="btn btn-primary btn-sm" onclick="genSub()">Generate Subcategory Report</button></div>`;
+ if(tab==='vendor') html=`<div style="display:flex;gap:8px;flex-wrap:wrap"><select class="input" id="rVendor" style="width:220px"><option value="">All Vendors</option>${uniqV}</select><input class="input" id="rVFrom" type="date" style="width:150px"><input class="input" id="rVTo" type="date" style="width:150px"><button class="btn btn-primary btn-sm" onclick="genVendor()">Generate Vendor Report</button></div>`;
+ if(tab==='custom') html=`<div class="grid grid-3"><input class="input" id="rCusFrom" type="date"><input class="input" id="rCusTo" type="date"><select class="input" id="rCusCat"><option value="">All Categories</option>${catOpts}</select><select class="input" id="rCusSub"><option value="">All Subcategories</option>${subOpts}</select><select class="input" id="rCusVendor"><option value="">All Vendors</option>${uniqV}</select><select class="input" id="rCusPay"><option value="">All Payments</option><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Debit/Credit Card</option><option>Other</option></select><button class="btn btn-primary btn-sm" onclick="genCustom()">Generate Custom</button></div>`;
+ document.getElementById('reportControls').innerHTML=html; document.getElementById('reportOut').innerHTML='';
+}
+function genDaily(){const d=document.getElementById('rDate').value; const rows=state.expenses.filter(e=>e.Date===d); renderReport(rows,`Daily Report - ${fmtDate(d)}`);}
+function genWeekly(){const from=document.getElementById('rWFrom').value||todayISO(); const to=document.getElementById('rWTo').value||todayISO(); if(from>to)return alert('Start date cannot be after end date.'); const rows=state.expenses.filter(e=>e.Date>=from && e.Date<=to); renderReport(rows,`Weekly/Custom ${fmtDate(from)} to ${fmtDate(to)}`);}
+function genMonthly(){const m=document.getElementById('rMonth').value; const rows=state.expenses.filter(e=>e.Date.startsWith(m)); renderReport(rows,`Monthly Report - ${m}`);}
+function genCat(){const cat=document.getElementById('rCat').value; const from=document.getElementById('rCFrom').value; const to=document.getElementById('rCTo').value; let rows=state.expenses.filter(e=>e.Category===cat); if(from) rows=rows.filter(e=>e.Date>=from); if(to) rows=rows.filter(e=>e.Date<=to); renderReport(rows,`Category Report - ${cat}`);}
+function genSub(){const sub=document.getElementById('rSub').value; const from=document.getElementById('rSFrom').value; const to=document.getElementById('rSTo').value; let rows=state.expenses.filter(e=>e.Subcategory===sub); if(from) rows=rows.filter(e=>e.Date>=from); if(to) rows=rows.filter(e=>e.Date<=to); renderReport(rows,`Subcategory Report - ${sub}`);}
+function genVendor(){const vendor=document.getElementById('rVendor').value; const from=document.getElementById('rVFrom').value; const to=document.getElementById('rVTo').value; let rows=vendor?state.expenses.filter(e=>e.Vendor===vendor):[...state.expenses]; if(from) rows=rows.filter(e=>e.Date>=from); if(to) rows=rows.filter(e=>e.Date<=to); renderReport(rows,`Vendor Report - ${vendor||'All Vendors'}`);}
+function genCustom(){const from=document.getElementById('rCusFrom').value; const to=document.getElementById('rCusTo').value; if(from&&to&&from>to)return alert('Start date cannot be after end date.'); const cat=document.getElementById('rCusCat').value; const sub=document.getElementById('rCusSub').value; const vendor=document.getElementById('rCusVendor').value; const pay=document.getElementById('rCusPay').value; let rows=[...state.expenses]; if(from) rows=rows.filter(e=>e.Date>=from); if(to) rows=rows.filter(e=>e.Date<=to); if(cat) rows=rows.filter(e=>e.Category===cat); if(sub) rows=rows.filter(e=>e.Subcategory===sub); if(vendor) rows=rows.filter(e=>e.Vendor===vendor); if(pay) rows=rows.filter(e=>e.PaymentMode===pay); renderReport(rows,'Custom Report');}
+function renderReport(rows, title){
+ const total=rows.reduce((s,e)=>s+e.Amount,0); const byCat={}; const bySub={}; const byPay={}; const byVendor={}; rows.forEach(e=>{byCat[e.Category]=(byCat[e.Category]||0)+e.Amount; bySub[e.Subcategory]=(bySub[e.Subcategory]||0)+e.Amount; byPay[e.PaymentMode]=(byPay[e.PaymentMode]||0)+e.Amount; if(e.Vendor) byVendor[e.Vendor]=(byVendor[e.Vendor]||0)+e.Amount;});
+ const cash=rows.filter(e=>e.PaymentMode==='Cash').reduce((s,e)=>s+e.Amount,0);
+ const html=`<div id="reportPrint"><h3>${title}</h3><p style="font-size:13px;color:var(--muted)">Total: ${state.currency}${total.toLocaleString('en-IN')} • Transactions: ${rows.length} • Cash: ${state.currency}${cash.toLocaleString('en-IN')} • Avg: ${state.currency}${(rows.length?total/rows.length:0).toFixed(2)}</p>
+ <div class="grid grid-3" style="margin-top:10px"><div><b>Category-wise</b><table style="margin-top:6px"><tr><th>Category</th><th>Amount</th></tr>${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td>${state.currency}${v.toLocaleString('en-IN')}</td></tr>`).join('')||'<tr><td colspan="2">No data</td></tr>'}</table></div><div><b>Subcategory-wise</b><table style="margin-top:6px"><tr><th>Subcat</th><th>Amount</th></tr>${Object.entries(bySub).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([k,v])=>`<tr><td>${k}</td><td>${state.currency}${v.toLocaleString('en-IN')}</td></tr>`).join('')||'<tr><td colspan="2">No data</td></tr>'}</table></div><div><b>Vendor-wise</b><table style="margin-top:6px"><tr><th>Vendor</th><th>Amount</th></tr>${Object.entries(byVendor).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([k,v])=>`<tr><td>${k}</td><td>${state.currency}${v.toLocaleString('en-IN')}</td></tr>`).join('')||'<tr><td colspan="2">No data</td></tr>'}</table></div></div>
+ <div style="margin-top:12px" class="table-wrap"><table><tr><th>Date</th><th>Particulars</th><th>Category/Sub</th><th>Vendor</th><th>Amount</th><th>Pay</th></tr>${rows.map(e=>`<tr><td>${fmtDate(e.Date)}</td><td>${e.Particulars||'-'}</td><td>${esc(e.Category)}/${esc(e.Subcategory)}</td><td>${e.Vendor}</td><td>${state.currency}${e.Amount.toLocaleString('en-IN')}</td><td>${e.PaymentMode}</td></tr>`).join('')||'<tr><td colspan="6">No records</td></tr>'}</table></div></div>`;
+ document.getElementById('reportOut').innerHTML=html; state.reportData=rows;
+}
+
+// 80mm Print
+function printDaily80(selectedDate){
+  const date=selectedDate||todayISO();
+  const rows=state.expenses.filter(e=>e.Date===date).sort((a,b)=>a.Category.localeCompare(b.Category));
+  const total=rows.reduce((s,e)=>s+e.Amount,0);
+  const byCat={}; rows.forEach(e=>{byCat[e.Category]=(byCat[e.Category]||0)+e.Amount;});
+  const byPay={}; rows.forEach(e=>{byPay[e.PaymentMode]=(byPay[e.PaymentMode]||0)+e.Amount;});
+  const cash=byPay['Cash']||0;const upi=byPay['UPI']||0;const bank=byPay['Bank Transfer']||0;const card=byPay['Debit/Credit Card']||0;const other=byPay['Other']||0;
+  const html80=`
+    <div class="center"><b style="font-size:14px">${esc(state.hotelName.toUpperCase())}</b><br><span class="small">DAILY EXPENSE SUMMARY</span><br><span class="small">Date: ${fmtDate(date)}</span></div>
+    <div class="line"></div>
+    <div class="small">Total Transactions: ${rows.length}</div>
+    <div class="row"><b>TOTAL EXPENSE</b><b>₹${total.toLocaleString('en-IN')}</b></div>
+    <div class="line"></div>
+    <div class="small"><b>Category-wise:</b></div>
+    ${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<div class="row"><span>${esc(k.slice(0,20))}</span><span>₹${v.toLocaleString('en-IN')}</span></div>`).join('')||'<div>None</div>'}
+    <div class="line"></div>
+    <div class="small"><b>Payment-wise:</b></div>
+    <div class="row"><span>Cash</span><span>₹${cash.toLocaleString('en-IN')}</span></div>
+    <div class="row"><span>UPI</span><span>₹${upi.toLocaleString('en-IN')}</span></div>
+    <div class="row"><span>Bank</span><span>₹${bank.toLocaleString('en-IN')}</span></div>
+    <div class="row"><span>Card</span><span>₹${card.toLocaleString('en-IN')}</span></div><div class="row"><span>Other</span><span>₹${other.toLocaleString('en-IN')}</span></div>
+    <div class="line"></div>
+    <div class="small"><b>Details:</b></div>
+    ${rows.map(e=>`<div style="margin:4px 0"><div class="row"><span style="font-weight:600">${esc(e.Category)}/${esc(e.Subcategory)}</span><span>₹${e.Amount.toLocaleString('en-IN')}</span></div><div class="small">${e.Vendor? 'Vendor: '+esc(e.Vendor)+' • ':''}${esc(e.PaymentMode)}${e.Particulars?' • '+esc(e.Particulars.slice(0,30)):''}</div></div>`).join('')||'<div>No expenses</div>'}
+    <div class="line"></div>
+    <div class="center small">File: ${state.fileName}<br>Printed: ${new Date().toLocaleString()}<br>Hotel Pachmarhi Expense Manager</div>
+    <div style="height:20mm"></div>
+  `;
+  document.getElementById('print80').innerHTML=html80;
+  document.getElementById('printA4').innerHTML=`<div style="padding:20px"><h2>${state.hotelName} - Daily Summary ${fmtDate(date)}</h2><p>Total ₹${total.toLocaleString('en-IN')} • ${rows.length} transactions</p><div style="margin-top:10px">${html80.replace(/class="thermal80"/g,'').replace(/<div class="thermal80"/g,'<div')}</div></div>`;
+  document.body.classList.remove('print-a4');document.body.classList.add('print-thermal');window.print();
+}
+
+function printReport(){const content=document.getElementById('reportPrint')?.innerHTML||'';if(!content)return alert('Generate a report first');document.getElementById('printA4').innerHTML=`<div style="padding:20px;font-family:Inter"><h2>${esc(state.hotelName)} - Expense Report</h2>${content}</div>`;document.getElementById('print80').innerHTML='';document.body.classList.remove('print-thermal');document.body.classList.add('print-a4');window.print();}
+function downloadCSVReport(){if(!state.reportData.length)return alert('No report data');const header=['Date','TransactionID','Category','Subcategory','Particulars','Amount','PaymentMode','Vendor','BillNumber','Remarks'];const cell=v=>{let x=String(v??'');if(/^[=+@\-]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"';};const csv=[header.map(cell).join(','),...state.reportData.map(e=>[e.Date,e.TransactionID,e.Category,e.Subcategory,e.Particulars,e.Amount,e.PaymentMode,e.Vendor,e.BillNumber,e.Remarks].map(cell).join(','))].join('\r\n'); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='Report_'+todayISO()+'.csv'; a.click(); URL.revokeObjectURL(url);}
+function downloadExcelReport(){if(!state.reportData.length) return alert('No report data'); const ws=XLSX.utils.json_to_sheet(state.reportData); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Report'); XLSX.writeFile(wb,'Report_'+todayISO()+'.xlsx');}
+
+function renderCatTable(){document.getElementById('catTable').innerHTML='<tr><th>ID</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Action</th></tr>'+state.categories.map(c=>`<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${esc(c.sub)}</td><td><span class="badge">${c.status}</span></td><td><button class="btn btn-ghost btn-sm" onclick="toggleCat(${c.id})">${c.status==='active'?'Deactivate':'Activate'}</button><button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="removeCat(${c.id})">Remove</button></td></tr>`).join('');}
+async function addCategory(){const cat=(document.getElementById('newCatName').value.trim()||document.getElementById('vCat')?.value||'').toUpperCase();const sub=document.getElementById('newSubName').value.trim();if(!cat||!sub)return alert('Enter category and subcategory');if(state.categories.some(c=>c.name.toLowerCase()===cat.toLowerCase()&&c.sub.toLowerCase()===sub.toLowerCase()))return alert('This category/subcategory already exists.');const id=Math.max(0,...state.categories.map(c=>Number(c.id)||0))+1;state.categories.push({id,name:cat,sub,status:'active'});state.unsaved=true;updateSaveUI();refreshCategorySelects();renderCatTable();document.getElementById('newCatName').value='';document.getElementById('newSubName').value='';if(!await saveWorkbook(false))alert('Category saved in recovery cache, but Excel sync failed.');}
+async function toggleCat(id){const c=state.categories.find(x=>x.id===id);if(c){c.status=c.status==='active'?'inactive':'active';state.unsaved=true;updateSaveUI();renderCatTable();refreshCategorySelects();if(!await saveWorkbook(false))alert('Category change not synced to Excel.');}}
+async function removeCat(id){const c=state.categories.find(x=>x.id===id);if(!c)return;if(state.expenses.some(e=>e.Category===c.name&&e.Subcategory===c.sub))return alert('This subcategory is used by existing transactions. Deactivate it instead to preserve accounting history.');if(!confirm('Remove this unused subcategory?'))return;state.categories=state.categories.filter(x=>x.id!==id);state.unsaved=true;updateSaveUI();renderCatTable();refreshCategorySelects();if(!await saveWorkbook(false))alert('Removal not synced to Excel.');}
+
+function openAddVendor(){document.getElementById('addVendorForm').classList.remove('hidden');}
+function closeAddVendor(){document.getElementById('addVendorForm').classList.add('hidden'); state.editVendorName=null; document.getElementById('vName').value=''; document.getElementById('vPhone').value=''; document.getElementById('vNote').value='';}
+async function saveVendor(){
+ const name=document.getElementById('vName').value.trim(); const phone=document.getElementById('vPhone').value.trim(); const cat=document.getElementById('vCat').value; const note=document.getElementById('vNote').value.trim();
+ if(!name) return alert('Vendor name required');
+ if(state.editVendorName && state.editVendorName!==name){const oldName=state.editVendorName;delete state.vendorsMeta[oldName];state.expenses.forEach(e=>{if(e.Vendor===oldName){const oldVendor=e.Vendor;e.Vendor=name;state.auditLog.push({TransactionID:e.TransactionID,Action:'VENDOR_RENAME',OldValue:oldVendor,NewValue:name,ModifiedBy:'Admin',DateTime:new Date().toISOString(),Reason:'Vendor master renamed'});}});}
+ state.vendorsMeta[name]={phone,category:cat,note};state.unsaved=true;updateSaveUI();refreshVendorDatalist();renderVendors();const ok=await saveWorkbook(false);if(!ok){alert('Vendor details are cached for recovery but not synced to Excel.');return;}closeAddVendor();
+}
+function renderVendors(){
+ const map={}; state.expenses.forEach(e=>{if(!e.Vendor) return; if(!map[e.Vendor]) map[e.Vendor]={total:0,count:0,last:e.Date}; map[e.Vendor].total+=e.Amount; map[e.Vendor].count++; if(e.Date>map[e.Vendor].last) map[e.Vendor].last=e.Date;});
+ const rows=Object.keys({...state.vendorsMeta, ...map}).map(name=>{const meta=state.vendorsMeta[name]||{}; const calc=map[name]||{total:0,count:0,last:'-'}; return {name, phone:meta.phone||'', category:meta.category||'', note:meta.note||'', total:calc.total, count:calc.count, last:calc.last};}).sort((a,b)=>b.total-a.total);
+ document.getElementById('vendorTable').innerHTML='<tr><th>Vendor</th><th>Contact</th><th>Category</th><th>Total</th><th>Count</th><th>Last</th><th>Notes</th><th>Actions</th></tr>'+rows.map(v=>`<tr><td><b>${esc(v.name)}</b></td><td>${esc(v.phone)}</td><td>${esc(v.category)}</td><td>${state.currency}${v.total.toLocaleString('en-IN')}</td><td>${v.count}</td><td>${v.last!=='-'?fmtDate(v.last):'-'}</td><td>${esc(v.note)}</td><td><button class="btn btn-ghost btn-sm" onclick="editVendor(decodeURIComponent('${encodeURIComponent(v.name)}'))">✏️</button><button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteVendor(decodeURIComponent('${encodeURIComponent(v.name)}'))">🗑</button><button class="btn btn-ghost btn-sm" onclick="reportVendor(decodeURIComponent('${encodeURIComponent(v.name)}'))">📊</button></td></tr>`).join('')||'<tr><td colspan="8">No vendors</td></tr>';
+}
+function editVendor(name){const meta=state.vendorsMeta[name]||{}; document.getElementById('vName').value=name; document.getElementById('vPhone').value=meta.phone||''; document.getElementById('vCat').value=meta.category||''; document.getElementById('vNote').value=meta.note||''; state.editVendorName=name; openAddVendor();}
+async function deleteVendor(name){if(!confirm(`Delete vendor ${name}?`)) return; delete state.vendorsMeta[name];state.unsaved=true;updateSaveUI();renderVendors();refreshVendorDatalist();if(!await saveWorkbook(false))alert('Vendor deletion not synced to Excel. Historical expense entries remain unchanged.');}
+function reportVendor(name){go('reports'); setTimeout(()=>{setReportTab('vendor', document.querySelectorAll('.report-tabs button')[5]); setTimeout(()=>{const sel=document.getElementById('rVendor'); if(sel) sel.value=name; genVendor();},150);},100);}
+
+function updateBackupInfo(){updateSaveUI();}
+async function saveSettings(){
+ const oldPass=document.getElementById('sOldPass').value; const newPass=document.getElementById('sNewPass').value; const conf=document.getElementById('sConfPass').value;
+ if(newPass||conf){const oldValid=state.passwordHash?((await hashPassword(oldPass,state.passwordSalt))===state.passwordHash):(oldPass===state.password);if(!oldValid){document.getElementById('settingsMsg').innerHTML='<div class="alert alert-warn">Current password incorrect</div>';return;} if(newPass!==conf){document.getElementById('settingsMsg').innerHTML='<div class="alert alert-warn">Passwords do not match</div>';return;} if(newPass.length<4){document.getElementById('settingsMsg').innerHTML='<div class="alert alert-warn">Too short</div>';return;} state.passwordSalt=crypto.randomUUID();state.passwordHash=await hashPassword(newPass,state.passwordSalt);state.password='';}
+ state.hotelName=document.getElementById('sHotel').value||state.hotelName;state.currency=document.getElementById('sCurr').value||'₹';state.appName=document.getElementById('sApp').value||state.appName;state.unsaved=true;updateSaveUI();const ok=await saveWorkbook(false);document.getElementById('settingsMsg').innerHTML=ok?'<div class="alert alert-ok">Settings saved and verified in Excel.</div>':'<div class="alert alert-warn">Settings cached for recovery, but Excel sync failed.</div>';  document.getElementById('sOldPass').value=''; document.getElementById('sNewPass').value=''; document.getElementById('sConfPass').value='';
+}
+function clearLocalCache(){if(!confirm('Clear recovery cache and saved file permission? The Excel workbook will not be deleted. Make sure Excel is fully synced before continuing.')) return; idbClear(); alert('Local cache cleared. Please reload.'); location.reload();}
+
+window.addEventListener('beforeunload', (e)=>{if(state.unsaved||state.syncError){e.preventDefault(); e.returnValue='You have unsaved changes.';}});
+
+window.addEventListener('afterprint',()=>document.body.classList.remove('print-a4','print-thermal'));
+document.addEventListener('DOMContentLoaded', async ()=>{
+  await tryRestore();
+  document.getElementById('loginPass').addEventListener('keydown', (e)=>{if(e.key==='Enter') doLogin();});
+  document.getElementById('filterFrom').addEventListener('change', renderRegister);
+  document.getElementById('filterTo').addEventListener('change', renderRegister);
+  // show restore info
+  const cached=await idbLoadAppData();
+  if(cached && cached.expenses){
+    const info=document.getElementById('restoreInfo');
+    info.textContent=`Found ${cached.expenses.length} records from last session. Login to continue. Connected file: ${cached.fileName||'local cache'}`;
+    info.classList.remove('hidden');
+  }
+});
+</script>
+</body>
+</html>
