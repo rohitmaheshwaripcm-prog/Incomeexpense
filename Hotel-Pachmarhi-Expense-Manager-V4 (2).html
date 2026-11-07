@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>HOTEL PACHMARHI – EXPENSE MANAGER V4</title>
+<title>HOTEL PACHMARHI – V7 – EXPENSE MANAGER</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root{--bg:#f7f8f9;--card:#fff;--text:#111827;--muted:#6b7280;--border:#e5e7eb;--primary:#0f3d2e;--primary-2:#145a43;--radius:14px;--danger:#dc2626;--warn:#f59e0b}
@@ -92,14 +94,23 @@ textarea.input{height:auto;padding:10px 12px;min-height:84px;resize:vertical}
 .thermal80 .line{border-top:1px dashed #000;margin:6px 0}
 .thermal80 .row{display:flex;justify-content:space-between}
 .thermal80 .small{font-size:10px}
+
+.drive-panel{background:#f0f7ff;border:1.5px solid #bfdbfe;border-radius:14px;padding:14px;margin-top:12px}
+.drive-panel.offline{background:#fffbeb;border-color:#fcd34d}
+.drive-status{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px}
+.sync-badge{padding:4px 10px;border-radius:999px;font-weight:700;font-size:11px;background:#dcfce7;color:#166534}
+.sync-badge.pending{background:#fef9c3;color:#854d0e}
+.sync-badge.offline{background:#fee2e2;color:#991b1b}
+.sync-badge.not-connected{background:#f3f4f6;color:#374151}
+
 </style>
 </head>
-<body data-app-version="4.0">
+<body data-app-version="5.1">
 <div id="loginView" class="login-wrap">
   <div class="login-card">
     <div style="display:grid;place-items:center;margin-bottom:10px"><div class="brand-mark">HP</div></div>
     <h1>HOTEL PACHMARHI</h1>
-    <p class="sub">Expense Manager V4 • Excel is the Primary Database</p>
+    <p class="sub">Expense Manager V5.1 • Excel + Conflict-Aware Google Drive Sync</p>
     <div id="loginMsg" class="alert alert-warn hidden"></div>
     <div id="restoreInfo" class="alert alert-ok hidden"></div>
     <div class="field"><label>Password</label><input id="loginPass" type="password" placeholder="Enter admin password"></div>
@@ -119,6 +130,7 @@ textarea.input{height:auto;padding:10px 12px;min-height:84px;resize:vertical}
       <span><span id="saveDot" class="dot"></span> <span id="saveText">No workbook</span></span>
       <span id="recCount" class="hidden"></span>
       <button class="btn btn-ghost btn-sm" onclick="saveWorkbook(true)">↻ Sync</button><button class="btn btn-ghost btn-sm" onclick="changeFilePath()">📁 Change File</button>
+      <button class="btn btn-ghost btn-sm" id="driveTopBtn" onclick="toggleDrivePanel()">☁️ Drive: <span id="driveTopStatus">Not Connected</span></button>
       <button class="btn btn-ghost btn-sm" onclick="lockApp()">🔒 Lock</button>
     </div>
   </div>
@@ -137,6 +149,7 @@ textarea.input{height:auto;padding:10px 12px;min-height:84px;resize:vertical}
     </nav>
     <main class="main">
       <section id="page-dashboard">
+<div class="drive-panel" style="padding:10px 14px"><div class="drive-status"><span id="dashDriveStatus">☁️ Drive: Checking…</span><span id="dashPending"></span><button class="btn btn-ghost btn-sm" onclick="syncToDrive(true)">Sync Now</button><button class="btn btn-ghost btn-sm" onclick="go('backup')">Drive Settings</button></div></div><div style="height:12px"></div>
         <div class="grid grid-4" id="kpiGrid"></div>
         <div style="height:14px"></div>
         <div class="grid grid-2">
@@ -248,7 +261,43 @@ textarea.input{height:auto;padding:10px 12px;min-height:84px;resize:vertical}
       <section id="page-backup" class="hidden">
         <div class="card">
           <h2 style="font-size:18px">File & Backup - Single File Mode</h2>
-          <div class="alert alert-ok" id="backupInfo" style="margin-top:12px"></div>
+          
+<div class="drive-panel" id="drivePanel">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <div><b style="font-size:15px">☁️ Google Drive Sync — Shared Master Workbook</b><div style="font-size:12px;color:#475569;margin-top:2px">Each computer keeps its own local Excel copy and reconciles changes with one shared Drive master. Offline changes remain queued until sync.</div></div>
+    <span id="driveBadge" class="sync-badge not-connected">Not Connected</span>
+  </div>
+  <div class="drive-status" style="margin-top:10px">
+    <span>File: <b id="driveFileName">—</b></span>
+    <span>• Last Sync: <b id="driveLastSync">Never</b></span>
+    <span>• Pending: <b id="drivePendingCount">0</b></span>
+    <span id="onlineStatus">• 🟢 Online</span>
+  </div>
+  <div class="grid grid-3" style="margin-top:12px">
+    <div class="field"><label>Google Cloud OAuth Client ID (from setup below)</label><input class="input" id="driveClientId" placeholder="123456...apps.googleusercontent.com"></div>
+    <div class="field"><label>Drive File Name</label><input class="input" id="driveFileNameInput" value="HotelPachmarhi_Expenses.xlsx"></div>
+    <div class="field"><label>Drive Folder (optional)</label><input class="input" id="driveFolderId" placeholder="Folder ID or leave blank for My Drive"></div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+    <button class="btn btn-primary btn-sm" id="driveConnectBtn" onclick="connectDrive()">🔗 Connect Google Drive</button>
+    <button class="btn btn-ghost btn-sm" onclick="syncToDrive(true)">🔄 Sync Now</button>
+    <button class="btn btn-ghost btn-sm" onclick="downloadFromDrive()">⬇ Pull from Drive</button>
+    <button class="btn btn-ghost btn-sm" onclick="disconnectDrive()">Disconnect</button>
+  </div>
+  <div id="driveMsg" style="font-size:12px;margin-top:8px;color:#334155"></div>
+  <details style="margin-top:10px"><summary style="cursor:pointer;font-size:12px;font-weight:700">How to set up Drive + GitHub Pages (one-time setup)</summary>
+  <ol style="font-size:12px;color:#334155;line-height:1.6;margin:8px 0 0 18px">
+    <li>Go to <b>console.cloud.google.com</b> → Create Project → Enable <b>Google Drive API</b></li>
+    <li>APIs & Services → Credentials → Create <b>OAuth Client ID</b> → Type: <b>Web application</b></li>
+    <li>Authorized JavaScript origins: add <b>https://YOUR-USERNAME.github.io</b> and <b>http://localhost:8000</b></li>
+    <li>Copy Client ID → Paste above → Click Connect Drive → Allow Drive access</li>
+    <li>First system: Click Sync Now → Creates file on Drive. Other systems: Paste same Client ID → Connect → Pull from Drive → Same file appears.</li>
+    <li>Upload this HTML to GitHub → Settings → Pages → Deploy from main branch. Share link.</li>
+  </ol>
+  </details>
+  <div style="font-size:11px;color:#64748b;margin-top:8px">Privacy: Token stays in your browser (sessionStorage). File is private to the Google account that connects. Share Drive file with staff accounts via Drive Share button for multi-system access. Offline changes remain in the recovery cache. On reconnect, records are reconciled by transaction ID and deletes are retained. Simultaneous edits are guarded by Drive revision checks; review any reported conflict.</div>
+</div>
+<div class="alert alert-ok" id="backupInfo" style="margin-top:12px"></div>
           <div class="grid grid-2" style="margin-top:12px">
             <div class="card" style="border:2px dashed var(--primary);background:#f0fdf4"><h3>🔗 Connected Excel File</h3><p style="font-size:13px;color:var(--muted);margin:8px 0">This is your SINGLE source of truth. All expenses save here. Path can be changed anytime.</p><div style="font-size:12px;margin-bottom:8px"><b>Current:</b> <span id="connectedPath">No file connected</span></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary btn-sm" onclick="connectFile()">📁 Connect / Change Excel File</button><button class="btn btn-ghost btn-sm" onclick="createNewWorkbook()">➕ Create New Single File</button></div><div style="font-size:11px;color:var(--muted);margin-top:8px">Chrome/Edge: File handle is stored in IndexedDB and auto-restores on next open. No re-connect needed if permission retained.</div></div>
             <div class="card"><h3>💾 How Saving Works Now</h3><ul style="font-size:13px;color:var(--muted);margin:8px 0 0 18px;line-height:1.6"><li>When file is connected, <b>Save writes directly to that same file</b> — no new download every time.</li><li>Data also cached locally (IndexedDB) so old data shows after closing HTML.</li><li>Excel write access requires a supported Chromium browser and a user-selected workbook; local cache is recovery-only.</li><li>Use Download Backup only when you explicitly want a copy.</li></ul><div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-ghost btn-sm" onclick="saveWorkbook(true)">🔄 Sync Now to Connected File</button><button class="btn btn-ghost btn-sm" onclick="downloadBackup()">⬇ Download Copy (Backup)</button></div></div>
@@ -303,7 +352,20 @@ const DEFAULT_CATS = {
  "PROPERTY & OUTDOOR":["Gardening","Landscaping","Pest Control","Security","Parking Charges","Property Maintenance"],
  "MISCELLANEOUS":["Other Expenses"]
 };
-let state={password:"1234",passwordHash:"",passwordSalt:"",hotelName:"Hotel Pachmarhi",appName:"HOTEL PACHMARHI – EXPENSE MANAGER",currency:"₹",expenses:[],categories:[],auditLog:[],vendorsMeta:{},lastSave:null,unsaved:false,fileHandle:null,fileName:"HotelPachmarhi_Expenses.xlsx",currentEditId:null,reportData:[],editVendorName:null,lastExcelSync:null,syncError:null};
+
+// ===== V7 SECURITY + DATA-INTEGRITY PATCHES =====
+function escapeHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return escapeHtml(s).replace(/"/g,'&quot;'); }
+async function sha256Hex(str){ const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)); return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join(''); }
+function showToast(msg, type='ok'){ let el=document.getElementById('toast'); if(!el){ el=document.createElement('div'); el.id='toast'; el.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;padding:12px 18px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.2);max-width:90vw;text-align:center'; document.body.appendChild(el);} el.textContent=msg; el.style.background = type==='error' ? '#fee2e2' : type==='warn' ? '#fef9c3' : '#dcfce7'; el.style.color = type==='error' ? '#991b1b' : type==='warn' ? '#854d0e' : '#166534'; el.style.display='block'; clearTimeout(el._t); el._t=setTimeout(()=>el.style.display='none', 3500); }
+// Override alert with toast for non-critical (keep native for confirm)
+const _nativeAlert = window.alert;
+window.alert = function(m){ showToast(String(m), 'warn'); console.log('[alert]', m); };
+function genId(){ const ts = Date.now().toString(36).toUpperCase(); const rnd = (crypto.randomUUID ? crypto.randomUUID().slice(0,8).toUpperCase() : Math.random().toString(36).slice(2,10).toUpperCase()); return "TXN-"+ts+"-"+rnd; }
+function todayISO(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+function safeParseDate(v){ if(!v) return ''; if(v instanceof Date) { const d=new Date(v); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10);} const s=String(v).trim(); if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10); const m=s.match(/(\d{2})-(\d{2})-(\d{4})/); if(m) return `${m[3]}-${m[2]}-${m[1]}`; const parsed=new Date(s); if(!isNaN(parsed)) { parsed.setMinutes(parsed.getMinutes()-parsed.getTimezoneOffset()); return parsed.toISOString().slice(0,10);} return s.slice(0,10); }
+
+let state={password:"", passwordHash:"",passwordSalt:"",hotelName:"Hotel Pachmarhi",appName:"HOTEL PACHMARHI – EXPENSE MANAGER • V7",currency:"₹",expenses:[],categories:[],auditLog:[],vendorsMeta:{},syncTombstones:[],syncConflicts:[],settingsModifiedAt:'',lastSave:null,unsaved:false,fileHandle:null,fileName:"HotelPachmarhi_Expenses.xlsx",currentEditId:null,reportData:[],editVendorName:null,lastExcelSync:null,syncError:null};
 let pendingAction=null; let charts={};
 const DB_NAME="hotel_pachmarhi_db"; const STORE_HANDLE="fileHandles"; const STORE_DATA="appData";
 
@@ -333,7 +395,7 @@ function parseExcelDate(v){
 }
 function fmtDate(d){if(!d) return ""; const p=d.split("-"); if(p.length!==3) return d; return `${p[2]}-${p[1]}-${p[0]}`;}
 function todayISO(){const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
-function genId(){return "TXN-"+todayISO().replace(/-/g,"")+"-"+Date.now().toString(36).toUpperCase()+"-"+crypto.getRandomValues(new Uint32Array(1))[0].toString(36).toUpperCase();}
+
 function initCategories(){if(state.categories.length) return; let id=1; for(const [cat, subs] of Object.entries(DEFAULT_CATS)){ subs.forEach(s=>{state.categories.push({id:id++,name:cat,sub:s,status:"active"})}); }}
 
 async function tryRestore(){
@@ -343,6 +405,7 @@ async function tryRestore(){
    state.expenses=Array.isArray(cached.expenses)?cached.expenses:[];
    state.categories=Array.isArray(cached.categories)?cached.categories:[];
    state.auditLog=Array.isArray(cached.auditLog)?cached.auditLog:[];
+    state.syncTombstones=Array.isArray(cached.syncTombstones)?cached.syncTombstones:[];state.syncConflicts=Array.isArray(cached.syncConflicts)?cached.syncConflicts:[];state.settingsModifiedAt=cached.settingsModifiedAt||'';
    state.vendorsMeta=cached.vendorsMeta&&typeof cached.vendorsMeta==='object'?cached.vendorsMeta:{};
    const info=document.getElementById('restoreInfo'); if(info){info.textContent=`Recovery cache found: ${state.expenses.length} expense records. Connect/verify the Excel workbook before making changes.`; info.classList.remove('hidden');}
  }
@@ -362,10 +425,26 @@ async function tryRestore(){
 }
 
 async function hashPassword(password,salt){const enc=new TextEncoder();const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:enc.encode(salt),iterations:150000,hash:'SHA-256'},key,256);return [...new Uint8Array(bits)].map(b=>b.toString(16).padStart(2,'0')).join('');}
+async function verifyPassword(candidate){
+ if(state.passwordHash){
+   if(state.passwordSalt) return (await hashPassword(candidate,state.passwordSalt))===state.passwordHash;
+   // V7/legacy SHA-256 hashes had no salt; verify once, then migrate to salted PBKDF2.
+   return (await sha256Hex('hotel-pachmarhi::'+candidate))===state.passwordHash;
+ }
+ return !!state.password && candidate===state.password;
+}
+async function ensurePasswordInitialized(){
+ if(state.passwordHash && state.passwordSalt) return;
+ if(state.passwordHash && !state.passwordSalt) return; // Legacy hash: retain until successful login migrates it.
+ const initial=state.password || '1234';state.passwordSalt=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());state.passwordHash=await hashPassword(initial,state.passwordSalt);state.password='';
+ await idbSaveAppData();
+}
 async function doLogin(){
  const v=document.getElementById('loginPass').value;
- let valid=false;try{valid=state.passwordHash?((await hashPassword(v,state.passwordSalt))===state.passwordHash):(v===state.password);}catch(e){valid=v===state.password;}
+ let valid=false;try{valid=await verifyPassword(v);}catch(e){valid=false;}
  if(valid){
+   if(!state.passwordSalt || !state.passwordHash){state.passwordSalt=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());state.passwordHash=await hashPassword(v,state.passwordSalt);state.password='';await idbSaveAppData();}
+
    document.getElementById('loginView').style.display='none';
    document.getElementById('appView').style.display='block';
    document.getElementById('loginPass').value='';
@@ -469,18 +548,20 @@ function buildWorkbook(){
  const expHeader=["Transaction ID","Date","Category","Subcategory","Particulars","Amount","Payment Mode","Vendor","Bill Number","Remarks","Created At","Modified At","BillAttachment"];
  const expRows=state.expenses.map(e=>[e.TransactionID,e.Date,e.Category,e.Subcategory,e.Particulars,e.Amount,e.PaymentMode,e.Vendor,e.BillNumber,e.Remarks,e.CreatedAt,e.ModifiedAt,e.BillAttachment||""]);
  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([expHeader,...expRows]),"EXPENSES");
- const catHeader=["Category ID","Category Name","Subcategory","Status"]; const catRows=state.categories.map(c=>[c.id,c.name,c.sub,c.status]); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([catHeader,...catRows]),"CATEGORIES");
+ const catHeader=["Category ID","Category Name","Subcategory","Status","Modified At"]; const catRows=state.categories.map(c=>[c.id,c.name,c.sub,c.status,c.modifiedAt||""]); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([catHeader,...catRows]),"CATEGORIES");
  const auditHeader=["Transaction ID","Action","Old Value","New Value","Modified By","Date & Time","Reason"]; const auditRows=state.auditLog.map(a=>[a.TransactionID,a.Action,a.OldValue,a.NewValue,a.ModifiedBy,a.DateTime,a.Reason]); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([auditHeader,...auditRows]),"AUDIT LOG");
  const dailyMap={}; state.expenses.forEach(e=>{if(!dailyMap[e.Date]) dailyMap[e.Date]={total:0,cash:0,upi:0,bank:0,other:0}; dailyMap[e.Date].total+=e.Amount; const p=e.PaymentMode; if(p==='Cash') dailyMap[e.Date].cash+=e.Amount; else if(p==='UPI') dailyMap[e.Date].upi+=e.Amount; else if(p.includes('Bank')||p.includes('Card')) dailyMap[e.Date].bank+=e.Amount; else dailyMap[e.Date].other+=e.Amount;}); const dailyRows=Object.entries(dailyMap).sort().map(([d,v])=>[d,v.total,v.cash,v.upi,v.bank,v.other]); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Date","Total Expenses","Cash","UPI","Bank","Other"],...dailyRows]),"DAILY SUMMARY");
  const monthMap={}; state.expenses.forEach(e=>{const m=e.Date.slice(0,7); if(!monthMap[m]) monthMap[m]={total:0,cash:0,upi:0,bank:0,other:0,count:0}; monthMap[m].total+=e.Amount; monthMap[m].count++; const p=e.PaymentMode; if(p==='Cash') monthMap[m].cash+=e.Amount; else if(p==='UPI') monthMap[m].upi+=e.Amount; else if(p.includes('Bank')||p.includes('Card')) monthMap[m].bank+=e.Amount; else monthMap[m].other+=e.Amount;}); const monthRows=Object.entries(monthMap).sort().map(([m,v])=>[m,v.total,v.cash,v.upi,v.bank,v.other,v.count]); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Month","Total Expenses","Cash","UPI","Bank","Other","Transaction Count"],...monthRows]),"MONTHLY SUMMARY");
- const vHeader=["Vendor Name","Contact Number","Category","Notes","Total Purchases","Transaction Count"]; const vRows=Object.entries(state.vendorsMeta).map(([name,meta])=>{const calc=state.expenses.filter(e=>e.Vendor===name); const total=calc.reduce((s,e)=>s+e.Amount,0); return [name,meta.phone||"",meta.category||"",meta.note||"",total,calc.length];}); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([vHeader,...vRows]),"VENDORS");
- const sett=[["Key","Value"],["Application Name",state.appName],["Hotel Name",state.hotelName],["Currency",state.currency],["Password Hash",state.passwordHash||""],["Password Salt",state.passwordSalt||""],["Last Save",state.lastSave||""]]; XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sett),"SETTINGS");
+ const vHeader=["Vendor Name","Contact Number","Category","Notes","Total Purchases","Transaction Count","Modified At"]; const vRows=Object.entries(state.vendorsMeta).map(([name,meta])=>{const calc=state.expenses.filter(e=>e.Vendor===name); const total=calc.reduce((s,e)=>s+e.Amount,0); return [name,meta.phone||"",meta.category||"",meta.note||"",total,calc.length,meta.modifiedAt||""];}); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([vHeader,...vRows]),"VENDORS");
+ const sett=[["Key","Value"],["Application Name",state.appName],["Hotel Name",state.hotelName],["Currency",state.currency],["Password Hash",state.passwordHash||""],["Password Salt",state.passwordSalt||""],["Last Save",state.lastSave||""],["Settings Modified At",state.settingsModifiedAt||""]]; XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sett),"SETTINGS");
  const attRows=state.expenses.filter(e=>e._attachData).map(e=>[e.TransactionID,e.BillAttachment||'',e._attachData]);
  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Transaction ID","File Name","Data URL"],...attRows]),"ATTACHMENTS");
+ const tombRows=(state.syncTombstones||[]).map(t=>[t.Type,t.EntityID,t.DeletedAt,t.DeletedBy||"Admin"]); XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Type","Entity ID","Deleted At","Deleted By"],...tombRows]),"SYNC DELETIONS");
+ const conflictRows=(state.syncConflicts||[]).map(c=>[c.TransactionID,c.LocalModifiedAt,c.DriveModifiedAt,c.Winner,c.DetectedAt,c.Note||""]);XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([["Transaction ID","Local Modified At","Drive Modified At","Winner","Detected At","Note"],...conflictRows]),"SYNC CONFLICTS");
  return wb;
 }
 
-async function saveWorkbook(showToast){
+async function saveWorkbook(showToast, skipDriveSync=false){
  if(!state.fileHandle){state.syncError='No Excel workbook connected.';state.unsaved=true;await idbSaveAppData();updateSaveUI();if(showToast)alert('Excel workbook is not connected. Data is only in the recovery cache. Connect Excel to make it permanent.');return false;}
  // Cache first for crash recovery, but never label this as an Excel save.
  try{await idbSaveAppData();}catch(e){state.syncError='Local recovery cache failed: '+e.message;state.unsaved=true;updateSaveUI();if(showToast)alert(state.syncError);return false;}
@@ -493,7 +574,7 @@ async function saveWorkbook(showToast){
    let existingWb=null;
    try{const f=await state.fileHandle.getFile(); if(f.size){const ab=await f.arrayBuffer(); existingWb=XLSX.read(ab,{type:'array'});}}catch(readErr){throw new Error('Could not read existing workbook safely: '+readErr.message);}
    const generated=buildWorkbook();
-   const owned=['EXPENSES','CATEGORIES','AUDIT LOG','DAILY SUMMARY','MONTHLY SUMMARY','VENDORS','SETTINGS','ATTACHMENTS'];
+   const owned=['EXPENSES','CATEGORIES','AUDIT LOG','DAILY SUMMARY','MONTHLY SUMMARY','VENDORS','SETTINGS','ATTACHMENTS','SYNC DELETIONS','SYNC CONFLICTS'];
    const wb=existingWb||XLSX.utils.book_new();
    owned.forEach(name=>{if(wb.Sheets[name]){delete wb.Sheets[name];wb.SheetNames=wb.SheetNames.filter(n=>n!==name);}});
    owned.forEach(name=>{if(generated.Sheets[name])XLSX.utils.book_append_sheet(wb,generated.Sheets[name],name);});
@@ -504,8 +585,10 @@ async function saveWorkbook(showToast){
    if(!verifyWb.Sheets.EXPENSES) throw new Error('Verification failed: EXPENSES sheet missing after write.');
    const verifyRows=XLSX.utils.sheet_to_json(verifyWb.Sheets.EXPENSES,{defval:''});
    if(verifyRows.length!==state.expenses.length) throw new Error(`Verification failed: expected ${state.expenses.length} rows, found ${verifyRows.length}.`);
+   const expectedLocal=new Map(state.expenses.map(e=>[String(e.TransactionID),[e.Date,e.Category,e.Subcategory,e.Particulars,Number(e.Amount),e.PaymentMode,e.Vendor,e.BillNumber,e.Remarks].map(v=>String(v??'')).join('\u001f')]));
+   for(const r of verifyRows){const id=String(r['Transaction ID']||r.TransactionID||'');const actual=[parseExcelDate(r.Date),r.Category,r.Subcategory,r.Particulars,Number(r.Amount),r['Payment Mode']||r.PaymentMode,r.Vendor,r['Bill Number']||r.BillNumber,r.Remarks].map(v=>String(v??'')).join('\u001f');if(!expectedLocal.has(id)||expectedLocal.get(id)!==actual)throw new Error('Verification failed: one or more saved expense fields do not match the in-memory records.');}
    state.lastSave=new Date().toISOString();state.lastExcelSync=state.lastSave;state.syncError=null;state.unsaved=false;
-   await idbSaveAppData();updateSaveUI();updateFileBadge();if(showToast)alert('Excel sync and verification successful: '+state.fileName);return true;
+   await idbSaveAppData();updateSaveUI();updateFileBadge();if(!skipDriveSync && typeof driveState!=='undefined' && driveState.accessToken){syncToDrive(false).catch(err=>console.warn('Drive sync queued:',err));}if(showToast)alert('Excel sync and verification successful: '+state.fileName);return true;
  }catch(e){
    if(writable){try{await writable.abort();}catch(_){}}
    state.syncError=e.message;state.unsaved=true;
@@ -535,7 +618,7 @@ async function changeFilePath(){await openWorkbook();}
 async function openWorkbook(){
  if('showOpenFilePicker' in window){
    try{
-     const [handle]=await window.showOpenFilePicker({types:[{description:'Excel',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx','.xls']}}]});
+     const [handle]=await window.showOpenFilePicker({types:[{description:'Excel',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]});
      state.fileHandle=handle; await idbSaveHandle(handle);
      const file=await handle.getFile(); state.fileName=file.name;
      await importWorkbookFile(file, true);
@@ -551,11 +634,11 @@ function createNewWorkbook(){
      try{
        const handle=await window.showSaveFilePicker({suggestedName:'HotelPachmarhi_Expenses_'+todayISO()+'.xlsx', types:[{description:'Excel',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]});
        state.fileHandle=handle; state.fileName=(await handle.getFile()).name||'HotelPachmarhi_Expenses_'+todayISO()+'.xlsx'; await idbSaveHandle(handle);
-       state.expenses=[]; state.auditLog=[]; state.vendorsMeta={}; state.unsaved=true; initCategories(); await saveWorkbook(false); updateSaveUI(); go('dashboard'); renderDashboard();
+       state.expenses=[]; state.auditLog=[]; state.vendorsMeta={}; state.syncTombstones=[]; state.syncConflicts=[]; state.settingsModifiedAt=new Date().toISOString(); state.unsaved=true; initCategories(); await saveWorkbook(false); updateSaveUI(); go('dashboard'); renderDashboard();
      }catch(e){ if(e.name!=='AbortError') alert(e.message); }
    })();
  }else{
-   state.expenses=[]; state.auditLog=[]; state.vendorsMeta={}; state.fileHandle=null; state.fileName='HotelPachmarhi_Expenses_'+todayISO()+'.xlsx'; state.unsaved=true; initCategories(); updateSaveUI(); idbSaveAppData(); go('dashboard');
+   state.expenses=[]; state.auditLog=[]; state.vendorsMeta={}; state.syncTombstones=[]; state.syncConflicts=[]; state.settingsModifiedAt=new Date().toISOString(); state.fileHandle=null; state.fileName='HotelPachmarhi_Expenses_'+todayISO()+'.xlsx'; state.unsaved=true; initCategories(); updateSaveUI(); idbSaveAppData(); go('dashboard');
  }
 }
 
@@ -566,12 +649,14 @@ async function importWorkbookFile(file,isConnect,options={}){
    const expSheet=wb.Sheets.EXPENSES;if(!expSheet)throw new Error('EXPENSES sheet not found');
    const rows=XLSX.utils.sheet_to_json(expSheet,{defval:''});
    const parsed=rows.map((r,i)=>({TransactionID:String(r['Transaction ID']||r.TransactionID||('IMPORTED-'+Date.now()+'-'+i)),Date:parseExcelDate(r.Date),Category:String(r.Category||''),Subcategory:String(r.Subcategory||''),Particulars:String(r.Particulars||r.Description||''),Amount:Number(r.Amount),PaymentMode:String(r['Payment Mode']||r.PaymentMode||'Cash'),Vendor:String(r.Vendor||''),BillNumber:String(r['Bill Number']||r.BillNumber||''),Remarks:String(r.Remarks||''),CreatedAt:r['Created At']||r.CreatedAt||new Date().toISOString(),ModifiedAt:r['Modified At']||r.ModifiedAt||new Date().toISOString(),BillAttachment:String(r.BillAttachment||'')})).filter(r=>r.Date&&Number.isFinite(r.Amount)&&r.Amount>0);
-   if(isConnect){state.expenses=parsed;}else{const map=new Map(state.expenses.map(e=>[e.TransactionID,e]));parsed.forEach(r=>{if(!map.has(r.TransactionID))map.set(r.TransactionID,r);});state.expenses=[...map.values()];}
-   if(wb.Sheets.CATEGORIES){const cr=XLSX.utils.sheet_to_json(wb.Sheets.CATEGORIES,{defval:''});if(cr.length)state.categories=cr.map((r,i)=>({id:Number(r['Category ID'])||i+1,name:String(r['Category Name']||r.Category||''),sub:String(r.Subcategory||''),status:String(r.Status||'active')})).filter(c=>c.name&&c.sub);}
-   if(wb.Sheets.VENDORS){const vr=XLSX.utils.sheet_to_json(wb.Sheets.VENDORS,{defval:''});vr.forEach(r=>{const name=String(r['Vendor Name']||r.Vendor||'');if(name)state.vendorsMeta[name]={phone:String(r['Contact Number']||''),category:String(r.Category||''),note:String(r.Notes||'')};});}
+   if(isConnect){state.expenses=parsed;state.categories=[];state.vendorsMeta={};state.auditLog=[];state.syncTombstones=[];state.syncConflicts=[];state.settingsModifiedAt='';}else{const map=new Map(state.expenses.map(e=>[e.TransactionID,e]));parsed.forEach(r=>{if(!map.has(r.TransactionID))map.set(r.TransactionID,r);});state.expenses=[...map.values()];}
+   if(wb.Sheets.CATEGORIES){const cr=XLSX.utils.sheet_to_json(wb.Sheets.CATEGORIES,{defval:''});if(cr.length)state.categories=cr.map((r,i)=>({id:Number(r['Category ID'])||i+1,name:String(r['Category Name']||r.Category||''),sub:String(r.Subcategory||''),status:String(r.Status||'active'),modifiedAt:String(r['Modified At']||'')})).filter(c=>c.name&&c.sub);}
+   if(wb.Sheets.VENDORS){const vr=XLSX.utils.sheet_to_json(wb.Sheets.VENDORS,{defval:''});vr.forEach(r=>{const name=String(r['Vendor Name']||r.Vendor||'');if(name)state.vendorsMeta[name]={phone:String(r['Contact Number']||''),category:String(r.Category||''),note:String(r.Notes||''),modifiedAt:String(r['Modified At']||'')};});}
    if(wb.Sheets['AUDIT LOG']){const ar=XLSX.utils.sheet_to_json(wb.Sheets['AUDIT LOG'],{defval:''});state.auditLog=ar.map(r=>({TransactionID:r['Transaction ID']||'',Action:r.Action||'',OldValue:r['Old Value']||'',NewValue:r['New Value']||'',ModifiedBy:r['Modified By']||'',DateTime:r['Date & Time']||'',Reason:r.Reason||''}));}
-   if(wb.Sheets.SETTINGS){const sr=XLSX.utils.sheet_to_json(wb.Sheets.SETTINGS,{defval:''});const map={};sr.forEach(r=>{map[r.Key||r.key]=r.Value||r.value||'';});if(map['Hotel Name'])state.hotelName=String(map['Hotel Name']);if(map['Application Name'])state.appName=String(map['Application Name']);if(map.Currency)state.currency=String(map.Currency);if(isConnect&&map['Password Hash']&&map['Password Salt']){state.passwordHash=String(map['Password Hash']);state.passwordSalt=String(map['Password Salt']);state.password='';}else if(isConnect&&map.Password){state.passwordSalt=crypto.randomUUID();state.passwordHash=await hashPassword(String(map.Password),state.passwordSalt);state.password='';}}
+   if(wb.Sheets.SETTINGS){const sr=XLSX.utils.sheet_to_json(wb.Sheets.SETTINGS,{defval:''});const map={};sr.forEach(r=>{map[r.Key||r.key]=r.Value||r.value||'';});if(map['Hotel Name'])state.hotelName=String(map['Hotel Name']);if(map['Application Name'])state.appName=String(map['Application Name']);if(map.Currency)state.currency=String(map.Currency);if(map['Settings Modified At'])state.settingsModifiedAt=String(map['Settings Modified At']);if(isConnect&&map['Password Hash']&&map['Password Salt']){state.passwordHash=String(map['Password Hash']);state.passwordSalt=String(map['Password Salt']);state.password='';}else if(isConnect&&map.Password){state.passwordSalt=crypto.randomUUID();state.passwordHash=await hashPassword(String(map.Password),state.passwordSalt);state.password='';}}
    if(wb.Sheets.ATTACHMENTS){const ar=XLSX.utils.sheet_to_json(wb.Sheets.ATTACHMENTS,{defval:''});const byId=new Map(ar.map(r=>[String(r['Transaction ID']),{name:String(r['File Name']||''),data:String(r['Data URL']||'')} ]));state.expenses.forEach(e=>{const a=byId.get(e.TransactionID);if(a&&a.data){e.BillAttachment=a.name||e.BillAttachment;e._attachData=a.data;}});}
+   if(wb.Sheets['SYNC DELETIONS']){const dr=XLSX.utils.sheet_to_json(wb.Sheets['SYNC DELETIONS'],{defval:''});state.syncTombstones=dr.map(r=>({Type:String(r.Type||''),EntityID:String(r['Entity ID']||''),DeletedAt:String(r['Deleted At']||''),DeletedBy:String(r['Deleted By']||'Admin')})).filter(t=>t.Type&&t.EntityID);}
+   if(wb.Sheets['SYNC CONFLICTS']){const cr=XLSX.utils.sheet_to_json(wb.Sheets['SYNC CONFLICTS'],{defval:''});state.syncConflicts=cr.map(r=>({TransactionID:String(r['Transaction ID']||''),LocalModifiedAt:String(r['Local Modified At']||''),DriveModifiedAt:String(r['Drive Modified At']||''),Winner:String(r.Winner||''),DetectedAt:String(r['Detected At']||''),Note:String(r.Note||'')}));}
    state.fileName=file.name;state.fileHandle=isConnect?state.fileHandle:null;state.unsaved=!isConnect;state.syncError=null;
    if(isConnect){state.lastExcelSync=new Date().toISOString();state.lastSave=state.lastExcelSync;}
    await idbSaveAppData();updateSaveUI();refreshCategorySelects();renderDashboard();renderRegister();updateFileBadge();
@@ -589,9 +674,9 @@ function renderDashboard(){
  const months=[...Array(6)].map((_,i)=>{const d=new Date(); d.setMonth(d.getMonth()-5+i); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}); const monthVals=months.map(m=>state.expenses.filter(e=>e.Date.startsWith(m)).reduce((s,e)=>s+e.Amount,0)); drawLine('monthLine', months, monthVals);
  const payModes=['Cash','UPI','Bank Transfer','Debit/Credit Card','Other']; const payVals=payModes.map(p=>state.expenses.filter(e=>e.PaymentMode===p).reduce((s,e)=>s+e.Amount,0)); drawPie('payChart', payModes, payVals);
  const todayByCat={}; state.expenses.filter(e=>e.Date===today).forEach(e=>{todayByCat[e.Category]=(todayByCat[e.Category]||0)+e.Amount;}); const highestCat=Object.entries(todayByCat).sort((a,b)=>b[1]-a[1])[0]; const highestExp=[...state.expenses].sort((a,b)=>b.Amount-a.Amount)[0];
- document.getElementById('todaySummary').innerHTML=`<div style="font-size:12px;color:var(--muted);line-height:1.6"><b>Highest today:</b> ${highestCat?highestCat[0]+' ₹'+highestCat[1].toLocaleString('en-IN'):'—'}<br><b>Highest expense:</b> ${highestExp?(highestExp.Particulars||highestExp.Subcategory)+' ₹'+highestExp.Amount.toLocaleString('en-IN'):'—'}</div>`;
+ document.getElementById('todaySummary').innerHTML=`<div style="font-size:12px;color:var(--muted);line-height:1.6"><b>Highest today:</b> ${highestCat?esc(highestCat[0])+' ₹'+highestCat[1].toLocaleString('en-IN'):'—'}<br><b>Highest expense:</b> ${highestExp?esc(highestExp.Particulars||highestExp.Subcategory)+' ₹'+highestExp.Amount.toLocaleString('en-IN'):'—'}</div>`;
  const last10=[...state.expenses].sort((a,b)=>new Date(b.CreatedAt)-new Date(a.CreatedAt)).slice(0,10);
- document.getElementById('last10Table').innerHTML='<tr><th>Date</th><th>Particulars</th><th>Category</th><th>Amount</th><th>Vendor</th></tr>'+last10.map(e=>`<tr><td>${fmtDate(e.Date)}</td><td>${(e.Particulars||e.Subcategory).slice(0,40)}</td><td>${e.Category}</td><td>${state.currency}${e.Amount.toLocaleString('en-IN')}</td><td>${e.Vendor}</td></tr>`).join('');
+ document.getElementById('last10Table').innerHTML='<tr><th>Date</th><th>Particulars</th><th>Category</th><th>Amount</th><th>Vendor</th></tr>'+last10.map(e=>`<tr><td>${fmtDate(e.Date)}</td><td>${esc((e.Particulars||e.Subcategory).slice(0,40))}</td><td>${escapeHtml(e.Category)}</td><td>${state.currency}${e.Amount.toLocaleString('en-IN')}</td><td>${escapeHtml(e.Vendor)}</td></tr>`).join('');
 }
 function drawPie(id, labels, data){const ctx=document.getElementById(id); if(!ctx) return; if(charts[id]) charts[id].destroy(); charts[id]=new Chart(ctx,{type:'doughnut',data:{labels, datasets:[{data, backgroundColor:['#0f3d2e','#14b8a6','#34d399','#f59e0b','#f87171','#60a5fa','#a78bfa','#fbbf24','#fb7185','#4ade80']}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}}}});}
 function drawBar(id, labels, data){const ctx=document.getElementById(id); if(!ctx) return; if(charts[id]) charts[id].destroy(); charts[id]=new Chart(ctx,{type:'bar',data:{labels, datasets:[{label:'₹', data, backgroundColor:'#0f3d2e'}]},options:{responsive:true,plugins:{legend:{display:false}}}});}
@@ -612,15 +697,15 @@ function downloadAttachment(id){const e=state.expenses.find(x=>x.TransactionID==
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 function editTxn(id){const e=state.expenses.find(x=>x.TransactionID===id); if(!e) return; state.currentEditId=id; document.getElementById('fDate').value=e.Date; document.getElementById('fCat').value=e.Category; onCatChange(); document.getElementById('fSub').value=e.Subcategory; document.getElementById('fAmount').value=e.Amount; document.getElementById('fPay').value=e.PaymentMode; document.getElementById('fVendor').value=e.Vendor; document.getElementById('fBillNo').value=e.BillNumber; document.getElementById('fPart').value=e.Particulars; document.getElementById('fRemarks').value=e.Remarks; document.getElementById('editBadge').classList.remove('hidden'); go('add');}
 function dupTxn(id){const e=state.expenses.find(x=>x.TransactionID===id); if(!e) return; state.currentEditId=null; document.getElementById('fDate').value=todayISO(); document.getElementById('fCat').value=e.Category; onCatChange(); document.getElementById('fSub').value=e.Subcategory; document.getElementById('fAmount').value=e.Amount; document.getElementById('fPay').value=e.PaymentMode; document.getElementById('fVendor').value=e.Vendor; document.getElementById('fBillNo').value=''; document.getElementById('fPart').value=e.Particulars; document.getElementById('fRemarks').value='Duplicated from '+id; go('add');}
-function delTxn(id){pendingAction=async()=>{const idx=state.expenses.findIndex(x=>x.TransactionID===id);if(idx>-1){const e=state.expenses[idx];state.auditLog.push({TransactionID:id,Action:'DELETE',OldValue:auditSnapshot(e),NewValue:'',ModifiedBy:'Admin',DateTime:new Date().toISOString(),Reason:'Deleted'});state.expenses.splice(idx,1);state.unsaved=true;updateSaveUI();const ok=await saveWorkbook(false);renderRegister();renderDashboard();if(!ok)alert('Deletion is in recovery cache but NOT synced to Excel. Reconnect and sync before relying on the workbook.');}};document.getElementById('adminPassInput').value='';document.getElementById('passMsg').textContent='';document.getElementById('passModal').classList.add('open');}
+function delTxn(id){pendingAction=async()=>{const idx=state.expenses.findIndex(x=>x.TransactionID===id);if(idx>-1){const e=state.expenses[idx];const deletedAt=new Date().toISOString();state.auditLog.push({TransactionID:id,Action:'DELETE',OldValue:auditSnapshot(e),NewValue:'',ModifiedBy:'Admin',DateTime:deletedAt,Reason:'Deleted'});state.syncTombstones.push({Type:'EXPENSE',EntityID:id,DeletedAt:deletedAt,DeletedBy:'Admin'});state.expenses.splice(idx,1);state.unsaved=true;updateSaveUI();const ok=await saveWorkbook(false);renderRegister();renderDashboard();if(!ok)alert('Deletion is in recovery cache but NOT synced to Excel. Reconnect and sync before relying on the workbook.');}};document.getElementById('adminPassInput').value='';document.getElementById('passMsg').textContent='';document.getElementById('passModal').classList.add('open');}
 
-function confirmAdminPass(){const v=document.getElementById('adminPassInput').value; if(v!==state.password){document.getElementById('passMsg').textContent='Incorrect password'; return;} closeModal('passModal'); if(pendingAction) pendingAction(); pendingAction=null;}
+async function confirmAdminPass(){const v=document.getElementById('adminPassInput').value;let valid=false;try{valid=await verifyPassword(v);}catch(e){valid=false;}if(!valid){document.getElementById('passMsg').textContent='Incorrect password';return;}closeModal('passModal');if(pendingAction)await pendingAction();pendingAction=null;}
 
 let currentReport='daily';
 function initReports(){setReportTab('daily', document.querySelector('.report-tabs button'));}
 function setReportTab(tab, btn){
  currentReport=tab; document.querySelectorAll('.report-tabs button').forEach(b=>b.classList.remove('active')); if(btn) btn.classList.add('active');
- let html=''; const catOpts=[...new Set(state.categories.map(c=>c.name))].map(c=>`<option>${c}</option>`).join(''); const subOpts=[...new Set(state.categories.map(c=>c.sub))].map(s=>`<option>${s}</option>`).join(''); const vendorOpts=Object.keys(state.vendorsMeta).concat([...new Set(state.expenses.map(e=>e.Vendor).filter(Boolean))]); const uniqV=[...new Set(vendorOpts)].map(v=>`<option>${v}</option>`).join('');
+ let html=''; const catOpts=[...new Set(state.categories.map(c=>c.name))].map(c=>`<option>${esc(c)}</option>`).join(''); const subOpts=[...new Set(state.categories.map(c=>c.sub))].map(s=>`<option>${esc(s)}</option>`).join(''); const vendorOpts=Object.keys(state.vendorsMeta).concat([...new Set(state.expenses.map(e=>e.Vendor).filter(Boolean))]); const uniqV=[...new Set(vendorOpts)].map(v=>`<option>${esc(v)}</option>`).join('');
  if(tab==='daily') html=`<div style="display:flex;gap:8px"><input class="input" id="rDate" type="date" value="${todayISO()}" style="width:180px"><button class="btn btn-primary btn-sm" onclick="genDaily()">Generate</button><button class="btn btn-ghost btn-sm" onclick="printDaily80(document.getElementById('rDate').value)">🧾 80mm Print</button></div>`;
  if(tab==='weekly') html=`<div style="display:flex;gap:8px;flex-wrap:wrap"><input class="input" id="rWFrom" type="date" style="width:160px"><input class="input" id="rWTo" type="date" style="width:160px"><button class="btn btn-primary btn-sm" onclick="genWeekly()">Generate</button></div>`;
  if(tab==='monthly') html=`<div style="display:flex;gap:8px"><input class="input" id="rMonth" type="month" value="${todayISO().slice(0,7)}" style="width:180px"><button class="btn btn-primary btn-sm" onclick="genMonthly()">Generate</button></div>`;
@@ -642,7 +727,7 @@ function renderReport(rows, title){
  const cash=rows.filter(e=>e.PaymentMode==='Cash').reduce((s,e)=>s+e.Amount,0);
  const html=`<div id="reportPrint"><h3>${title}</h3><p style="font-size:13px;color:var(--muted)">Total: ${state.currency}${total.toLocaleString('en-IN')} • Transactions: ${rows.length} • Cash: ${state.currency}${cash.toLocaleString('en-IN')} • Avg: ${state.currency}${(rows.length?total/rows.length:0).toFixed(2)}</p>
  <div class="grid grid-3" style="margin-top:10px"><div><b>Category-wise</b><table style="margin-top:6px"><tr><th>Category</th><th>Amount</th></tr>${Object.entries(byCat).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<tr><td>${k}</td><td>${state.currency}${v.toLocaleString('en-IN')}</td></tr>`).join('')||'<tr><td colspan="2">No data</td></tr>'}</table></div><div><b>Subcategory-wise</b><table style="margin-top:6px"><tr><th>Subcat</th><th>Amount</th></tr>${Object.entries(bySub).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([k,v])=>`<tr><td>${k}</td><td>${state.currency}${v.toLocaleString('en-IN')}</td></tr>`).join('')||'<tr><td colspan="2">No data</td></tr>'}</table></div><div><b>Vendor-wise</b><table style="margin-top:6px"><tr><th>Vendor</th><th>Amount</th></tr>${Object.entries(byVendor).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([k,v])=>`<tr><td>${k}</td><td>${state.currency}${v.toLocaleString('en-IN')}</td></tr>`).join('')||'<tr><td colspan="2">No data</td></tr>'}</table></div></div>
- <div style="margin-top:12px" class="table-wrap"><table><tr><th>Date</th><th>Particulars</th><th>Category/Sub</th><th>Vendor</th><th>Amount</th><th>Pay</th></tr>${rows.map(e=>`<tr><td>${fmtDate(e.Date)}</td><td>${e.Particulars||'-'}</td><td>${esc(e.Category)}/${esc(e.Subcategory)}</td><td>${e.Vendor}</td><td>${state.currency}${e.Amount.toLocaleString('en-IN')}</td><td>${e.PaymentMode}</td></tr>`).join('')||'<tr><td colspan="6">No records</td></tr>'}</table></div></div>`;
+ <div style="margin-top:12px" class="table-wrap"><table><tr><th>Date</th><th>Particulars</th><th>Category/Sub</th><th>Vendor</th><th>Amount</th><th>Pay</th></tr>${rows.map(e=>`<tr><td>${fmtDate(e.Date)}</td><td>${esc(e.Particulars||'-')}</td><td>${esc(e.Category)}/${esc(e.Subcategory)}</td><td>${escapeHtml(e.Vendor)}</td><td>${state.currency}${e.Amount.toLocaleString('en-IN')}</td><td>${escapeHtml(e.PaymentMode)}</td></tr>`).join('')||'<tr><td colspan="6">No records</td></tr>'}</table></div></div>`;
  document.getElementById('reportOut').innerHTML=html; state.reportData=rows;
 }
 
@@ -672,30 +757,30 @@ function printDaily80(selectedDate){
     <div class="small"><b>Details:</b></div>
     ${rows.map(e=>`<div style="margin:4px 0"><div class="row"><span style="font-weight:600">${esc(e.Category)}/${esc(e.Subcategory)}</span><span>₹${e.Amount.toLocaleString('en-IN')}</span></div><div class="small">${e.Vendor? 'Vendor: '+esc(e.Vendor)+' • ':''}${esc(e.PaymentMode)}${e.Particulars?' • '+esc(e.Particulars.slice(0,30)):''}</div></div>`).join('')||'<div>No expenses</div>'}
     <div class="line"></div>
-    <div class="center small">File: ${state.fileName}<br>Printed: ${new Date().toLocaleString()}<br>Hotel Pachmarhi Expense Manager</div>
+    <div class="center small">File: ${esc(state.fileName)}<br>Printed: ${new Date().toLocaleString()}<br>Hotel Pachmarhi Expense Manager</div>
     <div style="height:20mm"></div>
   `;
-  document.getElementById('print80').innerHTML=html80;
-  document.getElementById('printA4').innerHTML=`<div style="padding:20px"><h2>${state.hotelName} - Daily Summary ${fmtDate(date)}</h2><p>Total ₹${total.toLocaleString('en-IN')} • ${rows.length} transactions</p><div style="margin-top:10px">${html80.replace(/class="thermal80"/g,'').replace(/<div class="thermal80"/g,'<div')}</div></div>`;
+  document.getElementById('print80').innerHTML=html80; document.getElementById('printA4').innerHTML='';
+  document.getElementById('printA4').innerHTML=`<div style="padding:20px"><h2>${esc(state.hotelName)} - Daily Summary ${fmtDate(date)}</h2><p>Total ₹${total.toLocaleString('en-IN')} • ${rows.length} transactions</p><div style="margin-top:10px">${html80.replace(/class="thermal80"/g,'').replace(/<div class="thermal80"/g,'<div')}</div></div>`;
   document.body.classList.remove('print-a4');document.body.classList.add('print-thermal');window.print();
 }
 
-function printReport(){const content=document.getElementById('reportPrint')?.innerHTML||'';if(!content)return alert('Generate a report first');document.getElementById('printA4').innerHTML=`<div style="padding:20px;font-family:Inter"><h2>${esc(state.hotelName)} - Expense Report</h2>${content}</div>`;document.getElementById('print80').innerHTML='';document.body.classList.remove('print-thermal');document.body.classList.add('print-a4');window.print();}
+function printReport(){const content=document.getElementById('reportPrint')?.innerHTML||'';if(!content)return alert('Generate a report first');document.getElementById('print80').innerHTML=''; document.getElementById('printA4').innerHTML=`<div style="padding:20px;font-family:Inter"><h2>${esc(state.hotelName)} - Expense Report</h2>${content}</div>`;document.getElementById('print80').innerHTML='';document.body.classList.remove('print-thermal');document.body.classList.add('print-a4');window.print();}
 function downloadCSVReport(){if(!state.reportData.length)return alert('No report data');const header=['Date','TransactionID','Category','Subcategory','Particulars','Amount','PaymentMode','Vendor','BillNumber','Remarks'];const cell=v=>{let x=String(v??'');if(/^[=+@\-]/.test(x))x="'"+x;return '"'+x.replace(/"/g,'""')+'"';};const csv=[header.map(cell).join(','),...state.reportData.map(e=>[e.Date,e.TransactionID,e.Category,e.Subcategory,e.Particulars,e.Amount,e.PaymentMode,e.Vendor,e.BillNumber,e.Remarks].map(cell).join(','))].join('\r\n'); const blob=new Blob([csv],{type:'text/csv'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='Report_'+todayISO()+'.csv'; a.click(); URL.revokeObjectURL(url);}
 function downloadExcelReport(){if(!state.reportData.length) return alert('No report data'); const ws=XLSX.utils.json_to_sheet(state.reportData); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Report'); XLSX.writeFile(wb,'Report_'+todayISO()+'.xlsx');}
 
-function renderCatTable(){document.getElementById('catTable').innerHTML='<tr><th>ID</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Action</th></tr>'+state.categories.map(c=>`<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${esc(c.sub)}</td><td><span class="badge">${c.status}</span></td><td><button class="btn btn-ghost btn-sm" onclick="toggleCat(${c.id})">${c.status==='active'?'Deactivate':'Activate'}</button><button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="removeCat(${c.id})">Remove</button></td></tr>`).join('');}
-async function addCategory(){const cat=(document.getElementById('newCatName').value.trim()||document.getElementById('vCat')?.value||'').toUpperCase();const sub=document.getElementById('newSubName').value.trim();if(!cat||!sub)return alert('Enter category and subcategory');if(state.categories.some(c=>c.name.toLowerCase()===cat.toLowerCase()&&c.sub.toLowerCase()===sub.toLowerCase()))return alert('This category/subcategory already exists.');const id=Math.max(0,...state.categories.map(c=>Number(c.id)||0))+1;state.categories.push({id,name:cat,sub,status:'active'});state.unsaved=true;updateSaveUI();refreshCategorySelects();renderCatTable();document.getElementById('newCatName').value='';document.getElementById('newSubName').value='';if(!await saveWorkbook(false))alert('Category saved in recovery cache, but Excel sync failed.');}
-async function toggleCat(id){const c=state.categories.find(x=>x.id===id);if(c){c.status=c.status==='active'?'inactive':'active';state.unsaved=true;updateSaveUI();renderCatTable();refreshCategorySelects();if(!await saveWorkbook(false))alert('Category change not synced to Excel.');}}
-async function removeCat(id){const c=state.categories.find(x=>x.id===id);if(!c)return;if(state.expenses.some(e=>e.Category===c.name&&e.Subcategory===c.sub))return alert('This subcategory is used by existing transactions. Deactivate it instead to preserve accounting history.');if(!confirm('Remove this unused subcategory?'))return;state.categories=state.categories.filter(x=>x.id!==id);state.unsaved=true;updateSaveUI();renderCatTable();refreshCategorySelects();if(!await saveWorkbook(false))alert('Removal not synced to Excel.');}
+function renderCatTable(){document.getElementById('catTable').innerHTML='<tr><th>ID</th><th>Category</th><th>Subcategory</th><th>Status</th><th>Action</th></tr>'+state.categories.map(c=>`<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${esc(c.sub)}</td><td><span class="badge">${esc(c.status)}</span></td><td><button class="btn btn-ghost btn-sm" onclick="toggleCat(${c.id})">${c.status==='active'?'Deactivate':'Activate'}</button><button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="removeCat(${c.id})">Remove</button></td></tr>`).join('');}
+async function addCategory(){const cat=(document.getElementById('newCatName').value.trim()||document.getElementById('vCat')?.value||'').toUpperCase();const sub=document.getElementById('newSubName').value.trim();if(!cat||!sub)return alert('Enter category and subcategory');if(state.categories.some(c=>c.name.toLowerCase()===cat.toLowerCase()&&c.sub.toLowerCase()===sub.toLowerCase()))return alert('This category/subcategory already exists.');const id=Math.max(0,...state.categories.map(c=>Number(c.id)||0))+1;state.categories.push({id,name:cat,sub,status:'active',modifiedAt:new Date().toISOString()});state.unsaved=true;updateSaveUI();refreshCategorySelects();renderCatTable();document.getElementById('newCatName').value='';document.getElementById('newSubName').value='';if(!await saveWorkbook(false))alert('Category saved in recovery cache, but Excel sync failed.');}
+async function toggleCat(id){const c=state.categories.find(x=>x.id===id);if(c){c.status=c.status==='active'?'inactive':'active';c.modifiedAt=new Date().toISOString();state.unsaved=true;updateSaveUI();renderCatTable();refreshCategorySelects();if(!await saveWorkbook(false))alert('Category change not synced to Excel.');}}
+async function removeCat(id){const c=state.categories.find(x=>x.id===id);if(!c)return;if(state.expenses.some(e=>e.Category===c.name&&e.Subcategory===c.sub))return alert('This subcategory is used by existing transactions. Deactivate it instead to preserve accounting history.');if(!confirm('Remove this unused subcategory?'))return;state.syncTombstones.push({Type:'CATEGORY',EntityID:c.name+'|'+c.sub,DeletedAt:new Date().toISOString(),DeletedBy:'Admin'});state.categories=state.categories.filter(x=>x.id!==id);state.unsaved=true;updateSaveUI();renderCatTable();refreshCategorySelects();if(!await saveWorkbook(false))alert('Removal not synced to Excel.');}
 
 function openAddVendor(){document.getElementById('addVendorForm').classList.remove('hidden');}
 function closeAddVendor(){document.getElementById('addVendorForm').classList.add('hidden'); state.editVendorName=null; document.getElementById('vName').value=''; document.getElementById('vPhone').value=''; document.getElementById('vNote').value='';}
 async function saveVendor(){
  const name=document.getElementById('vName').value.trim(); const phone=document.getElementById('vPhone').value.trim(); const cat=document.getElementById('vCat').value; const note=document.getElementById('vNote').value.trim();
  if(!name) return alert('Vendor name required');
- if(state.editVendorName && state.editVendorName!==name){const oldName=state.editVendorName;delete state.vendorsMeta[oldName];state.expenses.forEach(e=>{if(e.Vendor===oldName){const oldVendor=e.Vendor;e.Vendor=name;state.auditLog.push({TransactionID:e.TransactionID,Action:'VENDOR_RENAME',OldValue:oldVendor,NewValue:name,ModifiedBy:'Admin',DateTime:new Date().toISOString(),Reason:'Vendor master renamed'});}});}
- state.vendorsMeta[name]={phone,category:cat,note};state.unsaved=true;updateSaveUI();refreshVendorDatalist();renderVendors();const ok=await saveWorkbook(false);if(!ok){alert('Vendor details are cached for recovery but not synced to Excel.');return;}closeAddVendor();
+ if(state.editVendorName && state.editVendorName!==name){const oldName=state.editVendorName;state.syncTombstones.push({Type:'VENDOR',EntityID:oldName,DeletedAt:new Date().toISOString(),DeletedBy:'Admin'});delete state.vendorsMeta[oldName];state.expenses.forEach(e=>{if(e.Vendor===oldName){const oldVendor=e.Vendor;e.Vendor=name;e.ModifiedAt=new Date().toISOString();state.auditLog.push({TransactionID:e.TransactionID,Action:'VENDOR_RENAME',OldValue:oldVendor,NewValue:name,ModifiedBy:'Admin',DateTime:new Date().toISOString(),Reason:'Vendor master renamed'});}});}
+ state.vendorsMeta[name]={phone,category:cat,note,modifiedAt:new Date().toISOString()};state.unsaved=true;updateSaveUI();refreshVendorDatalist();renderVendors();const ok=await saveWorkbook(false);if(!ok){alert('Vendor details are cached for recovery but not synced to Excel.');return;}closeAddVendor();
 }
 function renderVendors(){
  const map={}; state.expenses.forEach(e=>{if(!e.Vendor) return; if(!map[e.Vendor]) map[e.Vendor]={total:0,count:0,last:e.Date}; map[e.Vendor].total+=e.Amount; map[e.Vendor].count++; if(e.Date>map[e.Vendor].last) map[e.Vendor].last=e.Date;});
@@ -703,22 +788,152 @@ function renderVendors(){
  document.getElementById('vendorTable').innerHTML='<tr><th>Vendor</th><th>Contact</th><th>Category</th><th>Total</th><th>Count</th><th>Last</th><th>Notes</th><th>Actions</th></tr>'+rows.map(v=>`<tr><td><b>${esc(v.name)}</b></td><td>${esc(v.phone)}</td><td>${esc(v.category)}</td><td>${state.currency}${v.total.toLocaleString('en-IN')}</td><td>${v.count}</td><td>${v.last!=='-'?fmtDate(v.last):'-'}</td><td>${esc(v.note)}</td><td><button class="btn btn-ghost btn-sm" onclick="editVendor(decodeURIComponent('${encodeURIComponent(v.name)}'))">✏️</button><button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteVendor(decodeURIComponent('${encodeURIComponent(v.name)}'))">🗑</button><button class="btn btn-ghost btn-sm" onclick="reportVendor(decodeURIComponent('${encodeURIComponent(v.name)}'))">📊</button></td></tr>`).join('')||'<tr><td colspan="8">No vendors</td></tr>';
 }
 function editVendor(name){const meta=state.vendorsMeta[name]||{}; document.getElementById('vName').value=name; document.getElementById('vPhone').value=meta.phone||''; document.getElementById('vCat').value=meta.category||''; document.getElementById('vNote').value=meta.note||''; state.editVendorName=name; openAddVendor();}
-async function deleteVendor(name){if(!confirm(`Delete vendor ${name}?`)) return; delete state.vendorsMeta[name];state.unsaved=true;updateSaveUI();renderVendors();refreshVendorDatalist();if(!await saveWorkbook(false))alert('Vendor deletion not synced to Excel. Historical expense entries remain unchanged.');}
+async function deleteVendor(name){if(!confirm(`Delete vendor ${name}?`)) return; state.syncTombstones.push({Type:'VENDOR',EntityID:name,DeletedAt:new Date().toISOString(),DeletedBy:'Admin'}); delete state.vendorsMeta[name];state.unsaved=true;updateSaveUI();renderVendors();refreshVendorDatalist();if(!await saveWorkbook(false))alert('Vendor deletion not synced to Excel. Historical expense entries remain unchanged.');}
 function reportVendor(name){go('reports'); setTimeout(()=>{setReportTab('vendor', document.querySelectorAll('.report-tabs button')[5]); setTimeout(()=>{const sel=document.getElementById('rVendor'); if(sel) sel.value=name; genVendor();},150);},100);}
 
 function updateBackupInfo(){updateSaveUI();}
 async function saveSettings(){
  const oldPass=document.getElementById('sOldPass').value; const newPass=document.getElementById('sNewPass').value; const conf=document.getElementById('sConfPass').value;
- if(newPass||conf){const oldValid=state.passwordHash?((await hashPassword(oldPass,state.passwordSalt))===state.passwordHash):(oldPass===state.password);if(!oldValid){document.getElementById('settingsMsg').innerHTML='<div class="alert alert-warn">Current password incorrect</div>';return;} if(newPass!==conf){document.getElementById('settingsMsg').innerHTML='<div class="alert alert-warn">Passwords do not match</div>';return;} if(newPass.length<4){document.getElementById('settingsMsg').innerHTML='<div class="alert alert-warn">Too short</div>';return;} state.passwordSalt=crypto.randomUUID();state.passwordHash=await hashPassword(newPass,state.passwordSalt);state.password='';}
- state.hotelName=document.getElementById('sHotel').value||state.hotelName;state.currency=document.getElementById('sCurr').value||'₹';state.appName=document.getElementById('sApp').value||state.appName;state.unsaved=true;updateSaveUI();const ok=await saveWorkbook(false);document.getElementById('settingsMsg').innerHTML=ok?'<div class="alert alert-ok">Settings saved and verified in Excel.</div>':'<div class="alert alert-warn">Settings cached for recovery, but Excel sync failed.</div>';  document.getElementById('sOldPass').value=''; document.getElementById('sNewPass').value=''; document.getElementById('sConfPass').value='';
+ if(newPass||conf){const oldValid=await verifyPassword(oldPass);if(!oldValid){document.getElementById('settingsMsg').innerHTML='<div class="alert alert-warn">Current password incorrect</div>';return;} if(newPass!==conf){document.getElementById('settingsMsg').innerHTML='<div class="alert alert-warn">Passwords do not match</div>';return;} if(newPass.length<4){document.getElementById('settingsMsg').innerHTML='<div class="alert alert-warn">Too short</div>';return;} state.passwordSalt=(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random());state.passwordHash=await hashPassword(newPass,state.passwordSalt);state.password='';}
+ state.hotelName=document.getElementById('sHotel').value||state.hotelName;state.currency=document.getElementById('sCurr').value||'₹';state.appName=document.getElementById('sApp').value||state.appName;state.settingsModifiedAt=new Date().toISOString();state.unsaved=true;updateSaveUI();const ok=await saveWorkbook(false);document.getElementById('settingsMsg').innerHTML=ok?'<div class="alert alert-ok">Settings saved and verified in Excel.</div>':'<div class="alert alert-warn">Settings cached for recovery, but Excel sync failed.</div>';  document.getElementById('sOldPass').value=''; document.getElementById('sNewPass').value=''; document.getElementById('sConfPass').value='';
 }
 function clearLocalCache(){if(!confirm('Clear recovery cache and saved file permission? The Excel workbook will not be deleted. Make sure Excel is fully synced before continuing.')) return; idbClear(); alert('Local cache cleared. Please reload.'); location.reload();}
 
 window.addEventListener('beforeunload', (e)=>{if(state.unsaved||state.syncError){e.preventDefault(); e.returnValue='You have unsaved changes.';}});
 
 window.addEventListener('afterprint',()=>document.body.classList.remove('print-a4','print-thermal'));
-document.addEventListener('DOMContentLoaded', async ()=>{
+
+// ===== GOOGLE DRIVE SYNC (V7: MERGE + REVISION + CONTENT VERIFICATION) =====
+let driveState = { clientId:'', accessToken:null, fileId:null, fileName:'HotelPachmarhi_Expenses.xlsx', folderId:'', lastSync:null, lastVersion:null, pending:0, tokenExpiry:0, syncing:false, lastError:null };
+const DRIVE_KEY = 'hotel_pachmarhi_drive_v51';
+const DRIVE_MIME='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+function loadDriveConfig(){
+  try{const x=JSON.parse(localStorage.getItem(DRIVE_KEY)||'{}');driveState.accessToken=sessionStorage.getItem('drive_token')||null;driveState.clientId=x.clientId||'';driveState.fileId=x.fileId||null;driveState.fileName=x.fileName||'HotelPachmarhi_Expenses.xlsx';driveState.folderId=x.folderId||'';driveState.lastSync=x.lastSync||null;driveState.lastVersion=x.lastVersion||null;driveState.pending=x.pending?1:0;
+    const a=document.getElementById('driveClientId'),b=document.getElementById('driveFileNameInput'),c=document.getElementById('driveFolderId');if(a)a.value=driveState.clientId;if(b)b.value=driveState.fileName;if(c)c.value=driveState.folderId;
+  }catch(e){console.warn('Drive settings could not be loaded',e);}
+}
+function saveDriveConfig(){try{localStorage.setItem(DRIVE_KEY,JSON.stringify({clientId:driveState.clientId,fileId:driveState.fileId,fileName:driveState.fileName,folderId:driveState.folderId,lastSync:driveState.lastSync,lastVersion:driveState.lastVersion,pending:driveState.pending?1:0}));}catch(e){console.warn('Drive config could not be saved',e);}}
+function updateDriveUI(){
+ const online=navigator.onLine,badge=document.getElementById('driveBadge'),top=document.getElementById('driveTopStatus'),dash=document.getElementById('dashDriveStatus');
+ let label=!driveState.accessToken?'Not Connected':(!online?'Offline • Pending':(driveState.syncing?'Syncing…':(driveState.lastError?'Sync Error':(driveState.pending?'Pending Sync':(driveState.lastSync?'Verified on Drive':'Not Yet Verified')))));
+ if(badge){badge.textContent=label;badge.className='sync-badge '+(!driveState.accessToken?'not-connected':(!online?'offline':(driveState.pending||driveState.lastError?'pending':'')));}if(top)top.textContent=label;
+ if(dash)dash.textContent='☁️ Drive: '+label+(driveState.fileId?' • '+driveState.fileName:'')+(driveState.lastSync?' • Last verified: '+new Date(driveState.lastSync).toLocaleString():'');
+ const fn=document.getElementById('driveFileName');if(fn)fn.textContent=driveState.fileName+(driveState.fileId?' (ID: '+driveState.fileId.slice(0,12)+'...)':'');
+ const ls=document.getElementById('driveLastSync');if(ls)ls.textContent=driveState.lastSync?new Date(driveState.lastSync).toLocaleString():'Never';
+ const pc=document.getElementById('drivePendingCount');if(pc)pc.textContent=driveState.pending?'Yes':'0';const dp=document.getElementById('dashPending');if(dp)dp.textContent=driveState.pending?'⏳ Changes waiting to sync':'';
+ const os=document.getElementById('onlineStatus');if(os)os.textContent=online?'• 🟢 Online':'• 🔴 Offline';
+ const msg=document.getElementById('driveMsg');if(msg&&driveState.lastError)msg.textContent='Last sync error: '+driveState.lastError;else if(msg&&!online)msg.textContent='Offline. Changes are retained locally and will be reconciled after reconnecting.';
+}
+function toggleDrivePanel(){go('backup');document.getElementById('drivePanel')?.scrollIntoView({behavior:'smooth'});}
+async function connectDrive(){
+ const cid=document.getElementById('driveClientId').value.trim(),fname=document.getElementById('driveFileNameInput').value.trim()||'HotelPachmarhi_Expenses.xlsx',folder=document.getElementById('driveFolderId').value.trim();
+ if(!cid)return alert('Paste Google OAuth Client ID first.');if(!window.google?.accounts?.oauth2)return alert('Google Identity Services did not load. Check internet access and reload.');
+ driveState.clientId=cid;driveState.fileName=fname;driveState.folderId=folder;saveDriveConfig();
+ const client=google.accounts.oauth2.initTokenClient({client_id:cid,scope:'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',callback:async resp=>{
+  if(resp.error){driveState.lastError=resp.error;updateDriveUI();alert('Drive authorization failed: '+resp.error);return;}
+  driveState.accessToken=resp.access_token;driveState.tokenExpiry=Date.now()+Number(resp.expires_in||3600)*1000;sessionStorage.setItem('drive_token',resp.access_token);driveState.lastError=null;
+  try{await findOrCreateDriveFile();await syncToDrive(true);}catch(e){driveState.lastError=e.message;driveState.pending=1;saveDriveConfig();updateDriveUI();alert('Drive connection incomplete: '+e.message);}
+ }});client.requestAccessToken({prompt:'consent'});
+}
+async function driveFetch(url,opts={}){
+ if(driveState.tokenExpiry && Date.now()>=driveState.tokenExpiry){driveState.accessToken=null;driveState.tokenExpiry=0;try{sessionStorage.removeItem('drive_token');}catch(_){}updateDriveUI();throw new Error('Google access token expired. Re-connect Drive.');}
+ if(!driveState.accessToken)throw new Error('Drive is not connected. Re-connect to authorize this browser session.');
+ const headers={...(opts.headers||{}),Authorization:'Bearer '+driveState.accessToken};const res=await fetch(url,{...opts,headers});
+ if(res.status===401){driveState.accessToken=null;driveState.tokenExpiry=0;try{sessionStorage.removeItem('drive_token');}catch(_){}updateDriveUI();throw new Error('Google access token expired. Re-connect Drive.');}
+ return res;
+}
+async function driveJson(url,opts={}){const r=await driveFetch(url,opts);if(!r.ok){let detail='';try{detail=(await r.clone().json()).error?.message||'';}catch(_){}throw new Error('Google Drive API '+r.status+(detail?': '+detail:''));}return r.json();}
+async function findOrCreateDriveFile(){
+ const escaped=driveState.fileName.replace(/\\/g,'\\\\').replace(/'/g,"\\'");let q=`name='${escaped}' and trashed=false`;if(driveState.folderId)q+=` and '${driveState.folderId.replace(/'/g,"\\'")}' in parents`;
+ const data=await driveJson('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent(q)+'&orderBy=modifiedTime desc&pageSize=20&fields=files(id,name,modifiedTime,version)');
+ if(data.files?.length){if(data.files.length>1)throw new Error(`Found ${data.files.length} Drive files named ${driveState.fileName}. To prevent syncing to the wrong master, keep one file with this name in the selected folder or specify a dedicated folder ID, then reconnect.`);driveState.fileId=data.files[0].id;saveDriveConfig();return driveState.fileId;}
+ // Create the first master from the current app data; this is the only initial upload without a prior revision.
+ const out=XLSX.write(buildWorkbook(),{bookType:'xlsx',type:'array'}),blob=new Blob([out],{type:DRIVE_MIME});const meta={name:driveState.fileName,mimeType:DRIVE_MIME,...(driveState.folderId?{parents:[driveState.folderId]}:{})};const form=new FormData();form.append('metadata',new Blob([JSON.stringify(meta)],{type:'application/json'}));form.append('file',blob);
+ const r=await driveFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,version',{method:'POST',body:form});if(!r.ok)throw new Error('Could not create Drive master workbook ('+r.status+').');const d=await r.json();if(!d.id)throw new Error('Drive did not return a file ID.');driveState.fileId=d.id;saveDriveConfig();return d.id;
+}
+function readDriveWorkbook(buf){
+ const wb=XLSX.read(buf,{type:'array',cellDates:true});if(!wb.Sheets.EXPENSES)throw new Error('The Drive workbook has no EXPENSES sheet.');
+ const rows=XLSX.utils.sheet_to_json(wb.Sheets.EXPENSES,{defval:''});const expenses=rows.map((r,i)=>({TransactionID:String(r['Transaction ID']||r.TransactionID||''),Date:parseExcelDate(r.Date),Category:String(r.Category||''),Subcategory:String(r.Subcategory||''),Particulars:String(r.Particulars||''),Amount:Number(r.Amount),PaymentMode:String(r['Payment Mode']||'Cash'),Vendor:String(r.Vendor||''),BillNumber:String(r['Bill Number']||''),Remarks:String(r.Remarks||''),CreatedAt:String(r['Created At']||''),ModifiedAt:String(r['Modified At']||''),BillAttachment:String(r.BillAttachment||'')})).filter(e=>e.TransactionID&&e.Date&&Number.isFinite(e.Amount)&&e.Amount>0);
+ const sheetRows=name=>wb.Sheets[name]?XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:''}):[];
+ const categories=sheetRows('CATEGORIES').map((r,i)=>({id:Number(r['Category ID'])||i+1,name:String(r['Category Name']||''),sub:String(r.Subcategory||''),status:String(r.Status||'active'),modifiedAt:String(r['Modified At']||'')})).filter(x=>x.name&&x.sub);
+ const vendors={};sheetRows('VENDORS').forEach(r=>{const n=String(r['Vendor Name']||'');if(n)vendors[n]={phone:String(r['Contact Number']||''),category:String(r.Category||''),note:String(r.Notes||''),modifiedAt:String(r['Modified At']||'')};});
+ const audit=sheetRows('AUDIT LOG').map(r=>({TransactionID:String(r['Transaction ID']||''),Action:String(r.Action||''),OldValue:r['Old Value']||'',NewValue:r['New Value']||'',ModifiedBy:String(r['Modified By']||''),DateTime:String(r['Date & Time']||''),Reason:String(r.Reason||'')}));
+ const tombstones=sheetRows('SYNC DELETIONS').map(r=>({Type:String(r.Type||''),EntityID:String(r['Entity ID']||''),DeletedAt:String(r['Deleted At']||''),DeletedBy:String(r['Deleted By']||'Admin')})).filter(t=>t.Type&&t.EntityID);
+ const conflicts=sheetRows('SYNC CONFLICTS').map(r=>({TransactionID:String(r['Transaction ID']||''),LocalModifiedAt:String(r['Local Modified At']||''),DriveModifiedAt:String(r['Drive Modified At']||''),Winner:String(r.Winner||''),DetectedAt:String(r['Detected At']||''),Note:String(r.Note||'')}));
+ const attachments=new Map(sheetRows('ATTACHMENTS').map(r=>[String(r['Transaction ID']),{name:String(r['File Name']||''),data:String(r['Data URL']||'')} ]));expenses.forEach(e=>{const a=attachments.get(e.TransactionID);if(a?.data){e.BillAttachment=a.name||e.BillAttachment;e._attachData=a.data;}});
+ const settings={};sheetRows('SETTINGS').forEach(r=>{settings[String(r.Key||r.key||'')]=String(r.Value??r.value??'');});
+ return {expenses,categories,vendors,audit,tombstones,conflicts,settings};
+}
+function timeValue(v){const n=Date.parse(v||'');return Number.isFinite(n)?n:0;}
+function mergeDriveData(remote){
+ const localExp=new Map((state.expenses||[]).map(e=>[e.TransactionID,e]));const allExp=new Map(remote.expenses.map(e=>[e.TransactionID,e]));
+ const conflicts=new Map([...(remote.conflicts||[]),...(state.syncConflicts||[])].map(c=>[[c.TransactionID,c.LocalModifiedAt,c.DriveModifiedAt,c.Winner].join('|'),c]));
+ localExp.forEach((le,id)=>{const re=allExp.get(id);if(!re){allExp.set(id,le);return;}const fields=['Date','Category','Subcategory','Particulars','Amount','PaymentMode','Vendor','BillNumber','Remarks','BillAttachment'];const different=fields.some(k=>String(le[k]??'')!==String(re[k]??''));if(different){const localWins=timeValue(le.ModifiedAt)>timeValue(re.ModifiedAt);const winner=localWins?'LOCAL':'DRIVE';const conflict={TransactionID:id,LocalModifiedAt:String(le.ModifiedAt||''),DriveModifiedAt:String(re.ModifiedAt||''),Winner:winner,DetectedAt:new Date().toISOString(),Note:'Both copies changed this transaction. The newer Modified At value was retained; review this record.'};conflicts.set([id,conflict.LocalModifiedAt,conflict.DriveModifiedAt,winner].join('|'),conflict);if(localWins)allExp.set(id,le);}else if(timeValue(le.ModifiedAt)>timeValue(re.ModifiedAt))allExp.set(id,le);});
+ state.syncConflicts=[...conflicts.values()];
+ const tombMap=new Map();[...(state.syncTombstones||[]),...remote.tombstones].forEach(t=>{const k=t.Type+'|'+t.EntityID,old=tombMap.get(k);if(!old||timeValue(t.DeletedAt)>timeValue(old.DeletedAt))tombMap.set(k,t);});
+ const tombs=[...tombMap.values()];const expDeletes=new Map(tombs.filter(t=>t.Type==='EXPENSE').map(t=>[t.EntityID,t.DeletedAt]));
+ state.expenses=[...allExp.values()].filter(e=>!expDeletes.has(e.TransactionID)||timeValue(e.ModifiedAt)>timeValue(expDeletes.get(e.TransactionID)));
+ const catMap=new Map(remote.categories.map(c=>[c.name+'|'+c.sub,c]));(state.categories||[]).forEach(c=>{const k=c.name+'|'+c.sub,old=catMap.get(k);if(!old||timeValue(c.modifiedAt)>=timeValue(old.modifiedAt))catMap.set(k,c);});
+ const catDeletes=new Map(tombs.filter(t=>t.Type==='CATEGORY').map(t=>[t.EntityID,t.DeletedAt]));state.categories=[...catMap.values()].filter(c=>!catDeletes.has(c.name+'|'+c.sub)||timeValue(c.modifiedAt)>timeValue(catDeletes.get(c.name+'|'+c.sub)));
+ const vendorMap=new Map(Object.entries(remote.vendors));Object.entries(state.vendorsMeta||{}).forEach(([n,v])=>{const old=vendorMap.get(n);if(!old||timeValue(v.modifiedAt)>=timeValue(old.modifiedAt))vendorMap.set(n,v);});const vendorDeletes=new Map(tombs.filter(t=>t.Type==='VENDOR').map(t=>[t.EntityID,t.DeletedAt]));state.vendorsMeta=Object.fromEntries([...vendorMap.entries()].filter(([n,v])=>!vendorDeletes.has(n)||timeValue(v.modifiedAt)>timeValue(vendorDeletes.get(n))));
+ const auditMap=new Map();[...remote.audit,...(state.auditLog||[])].forEach(a=>{const k=[a.TransactionID,a.Action,a.DateTime,typeof a.NewValue==='string'?a.NewValue:JSON.stringify(a.NewValue)].join('|');auditMap.set(k,a);});state.auditLog=[...auditMap.values()];state.syncTombstones=tombs;
+ const rs=remote.settings||{},localStamp=timeValue(state.settingsModifiedAt),remoteStamp=timeValue(rs['Settings Modified At']);if(remoteStamp>localStamp){if(rs['Hotel Name'])state.hotelName=rs['Hotel Name'];if(rs['Application Name'])state.appName=rs['Application Name'];if(rs.Currency)state.currency=rs.Currency;if(rs['Password Hash']&&rs['Password Salt']){state.passwordHash=rs['Password Hash'];state.passwordSalt=rs['Password Salt'];state.password='';}state.settingsModifiedAt=rs['Settings Modified At'];}
+ // Carry attachments from whichever copy has the actual data URL.
+ const byId=new Map(remote.expenses.map(e=>[e.TransactionID,e]));state.expenses.forEach(e=>{const r=byId.get(e.TransactionID);if(!e._attachData&&r?._attachData){e._attachData=r._attachData;e.BillAttachment=r.BillAttachment||e.BillAttachment;}});
+ return state.expenses.length;
+}
+async function getDriveMaster(){
+ const metaRes=await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveState.fileId}?fields=id,name,modifiedTime,version,headRevisionId`);if(!metaRes.ok)throw new Error('Could not read Drive file metadata ('+metaRes.status+').');const meta=await metaRes.json();const etag=metaRes.headers.get('ETag')||metaRes.headers.get('etag');
+ const fileRes=await driveFetch(`https://www.googleapis.com/drive/v3/files/${driveState.fileId}?alt=media`);if(!fileRes.ok)throw new Error('Could not download Drive workbook ('+fileRes.status+').');const buf=await fileRes.arrayBuffer();const workbook=XLSX.read(buf,{type:'array',cellDates:true});return {meta,etag,data:readDriveWorkbook(buf),workbook};
+}
+async function uploadMergedWorkbook(etag,remoteWorkbook){
+ if(!etag)throw new Error('Google Drive did not provide a revision ETag. Upload stopped to avoid overwriting a concurrent update. Reconnect and try again.');
+ const generated=buildWorkbook();const owned=new Set(['EXPENSES','CATEGORIES','AUDIT LOG','DAILY SUMMARY','MONTHLY SUMMARY','VENDORS','SETTINGS','ATTACHMENTS','SYNC DELETIONS','SYNC CONFLICTS']);if(remoteWorkbook){remoteWorkbook.SheetNames.forEach(name=>{if(!owned.has(name)&&remoteWorkbook.Sheets[name]&&!generated.Sheets[name])XLSX.utils.book_append_sheet(generated,remoteWorkbook.Sheets[name],name);});}const out=XLSX.write(generated,{bookType:'xlsx',type:'array'}),blob=new Blob([out],{type:DRIVE_MIME});const res=await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${driveState.fileId}?uploadType=media`,{method:'PATCH',headers:{'Content-Type':DRIVE_MIME,'If-Match':etag},body:blob});
+ if(res.status===412) return false;if(!res.ok)throw new Error('Drive upload failed ('+res.status+').');return true;
+}
+async function syncToDrive(manual=false){
+ if(driveState.syncing){driveState.syncQueued=true;driveState.pending=1;saveDriveConfig();if(manual)alert('A Drive sync is already running. Your latest change has been queued for a second pass.');return false;}
+ await idbSaveAppData();if(!navigator.onLine){driveState.pending=1;saveDriveConfig();updateDriveUI();if(manual)alert('Offline. Changes are retained in the local recovery cache and queued for the next connection.');return false;}
+ if(!driveState.accessToken){driveState.pending=1;saveDriveConfig();updateDriveUI();if(manual)alert('Connect Google Drive first. Local Excel remains your primary copy.');return false;}
+ if(!driveState.fileId){try{await findOrCreateDriveFile();}catch(e){driveState.lastError=e.message;driveState.pending=1;saveDriveConfig();updateDriveUI();if(manual)alert(e.message);return false;}}
+ driveState.syncing=true;driveState.lastError=null;updateDriveUI();let finalOk=false;
+ try{
+  for(let attempt=1;attempt<=4;attempt++){
+   const master=await getDriveMaster();mergeDriveData(master.data);
+   // Keep each computer's connected Excel workbook reconciled with the Drive master before publishing.
+   await idbSaveAppData();if(state.fileHandle){const localOk=await saveWorkbook(false,true);if(!localOk)throw new Error('Drive merge succeeded in memory, but the connected local Excel workbook could not be updated.');}
+   const uploaded=await uploadMergedWorkbook(master.etag,master.workbook);if(!uploaded){if(attempt===4)throw new Error('Drive workbook changed repeatedly during sync. No overwrite was performed; retry when other users stop editing.');continue;}
+   // Verify the actual uploaded workbook, not just the HTTP response.
+   const verify=await getDriveMaster();const expectedIds=state.expenses.map(e=>e.TransactionID).sort(),actualIds=verify.data.expenses.map(e=>e.TransactionID).sort(),expected=expectedIds.length,actual=actualIds.length;
+   if(actual!==expected||expectedIds.some((id,i)=>id!==actualIds[i]))throw new Error(`Drive verification mismatch: expected ${expected} transaction IDs, found ${actual} or a different ID set.`);
+   const canonical=e=>JSON.stringify([e.TransactionID,e.Date,e.Category,e.Subcategory,e.Particulars,Number(e.Amount),e.PaymentMode,e.Vendor,e.BillNumber,e.Remarks,e.BillAttachment||'',e._attachData||''].map(v=>String(v??'')));
+   const expectedRows=state.expenses.map(canonical).sort(),actualRows=verify.data.expenses.map(canonical).sort();
+   if(expectedRows.length!==actualRows.length||expectedRows.some((row,i)=>row!==actualRows[i]))throw new Error('Drive content verification failed: one or more expense fields differ from the uploaded workbook. Sync remains pending.');
+   driveState.lastSync=new Date().toISOString();driveState.lastVersion=String(verify.meta.version||'');driveState.pending=0;driveState.lastError=null;saveDriveConfig();await idbSaveAppData();
+   if(state.fileHandle)await saveWorkbook(false,true);
+   refreshCategorySelects();renderDashboard();renderRegister();updateDriveUI();finalOk=true;
+   const msg=document.getElementById('driveMsg');if(msg)msg.textContent='✓ Reconciled and verified on Google Drive at '+new Date(driveState.lastSync).toLocaleString()+'. Transactions: '+actual+'. Conflicts to review: '+state.syncConflicts.length;
+   break;
+  }
+ }catch(e){driveState.lastError=e.message;driveState.pending=1;saveDriveConfig();const msg=document.getElementById('driveMsg');if(msg)msg.textContent='Drive sync failed: '+e.message;console.error('Drive sync error',e);}
+ finally{driveState.syncing=false;updateDriveUI();if(driveState.syncQueued){driveState.syncQueued=false;driveState.pending=1;saveDriveConfig();Promise.resolve().then(()=>syncToDrive(false));}}
+ if(manual){if(finalOk)alert('Drive sync completed and verified. Transactions: '+state.expenses.length+'. Conflict records requiring review: '+state.syncConflicts.length+'. See the SYNC CONFLICTS sheet in Excel.');else alert('Drive sync NOT verified. Your local recovery cache is retained. '+(driveState.lastError||'Please retry.'));}
+ return finalOk;
+}
+async function downloadFromDrive(){
+ if(!driveState.accessToken)return alert('Connect Drive first.');try{const ok=await syncToDrive(false);if(ok)alert('Drive workbook pulled, reconciled with this computer, and verified.');else alert('Pull/reconciliation could not be verified. '+(driveState.lastError||'Retry after reconnecting.'));}catch(e){alert('Drive pull failed: '+e.message);}
+}
+function disconnectDrive(){driveState.accessToken=null;driveState.tokenExpiry=0;try{sessionStorage.removeItem('drive_token');}catch(_){}driveState.lastError=null;saveDriveConfig();updateDriveUI();alert('Drive disconnected in this browser session. Local Excel and recovery cache remain unchanged.');}
+window.addEventListener('online',()=>{updateDriveUI();if(driveState.pending&&driveState.accessToken)syncToDrive(false);});window.addEventListener('offline',updateDriveUI);
+// Poll metadata only. Any remote change invokes the same guarded merge; never blindly replace local state.
+setInterval(async()=>{if(!driveState.accessToken||!navigator.onLine||!driveState.fileId||driveState.syncing)return;try{const d=await driveJson(`https://www.googleapis.com/drive/v3/files/${driveState.fileId}?fields=modifiedTime,version`);if(d.version&&String(d.version)!==String(driveState.lastVersion))await syncToDrive(false);}catch(e){driveState.lastError=e.message;updateDriveUI();}},90000);
+// Load Drive config on start
+loadDriveConfig();
+window.addEventListener('load', ()=>{ updateDriveUI(); });
+async function initDefaultPassword(){ await ensurePasswordInitialized(); }
+ document.addEventListener('DOMContentLoaded', async ()=>{
   await tryRestore();
+  await ensurePasswordInitialized();
   document.getElementById('loginPass').addEventListener('keydown', (e)=>{if(e.key==='Enter') doLogin();});
   document.getElementById('filterFrom').addEventListener('change', renderRegister);
   document.getElementById('filterTo').addEventListener('change', renderRegister);
